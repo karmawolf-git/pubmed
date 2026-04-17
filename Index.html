@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Viatris PubMed Searcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0a1628;--navy2:#0f2040;--navy3:#162d52;
+  --blue:#1a56db;--blue-lt:#3b82f6;--blue-pale:#dbeafe;
+  --slate:#64748b;--slate-lt:#94a3b8;
+  --line:#e2e8f0;--line2:#f1f5f9;
+  --white:#ffffff;--bg:#f0f4fb;
+  --text:#0f172a;--text2:#334155;--text3:#64748b;
+  --gold:#92400e;--gold-bg:#fffbeb;--gold-bd:#fcd34d;
+  --silver:#374151;--silver-bg:#f8fafc;--silver-bd:#cbd5e1;
+  --bronze:#78350f;--bronze-bg:#fef9ec;--bronze-bd:#fde68a;
+  --green:#166534;--green-bg:#f0fdf4;--green-bd:#86efac;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-bd:#fecaca;
+  --r-sm:6px;--r:10px;--r-lg:14px;--r-xl:18px;
+  --sh-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --sh:0 4px 16px rgba(0,0,0,.07),0 1px 4px rgba(0,0,0,.04);
+  --sh-lg:0 12px 40px rgba(0,0,0,.1),0 4px 12px rgba(0,0,0,.06);
+  --sans:'IBM Plex Sans',sans-serif;
+  --serif:'IBM Plex Serif',serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;padding:28px 20px}
+
+/* layout */
+.shell{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:390px 1fr;gap:24px;align-items:start}
+
+/* sidebar */
+.sidebar{background:var(--white);border-radius:var(--r-xl);border:1px solid var(--line);box-shadow:var(--sh);overflow:hidden;position:sticky;top:28px}
+.sb-head{background:var(--navy);padding:22px 22px 18px;position:relative;overflow:hidden}
+.sb-head::before{content:'';position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.04);pointer-events:none}
+.sb-head h1{font-size:15px;font-weight:600;color:#fff;letter-spacing:-.1px}
+.sb-head p{margin-top:4px;font-size:11.5px;color:#7aa2d4}
+.sb-body{padding:20px;display:flex;flex-direction:column;gap:20px}
+
+.sec-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--slate-lt);margin-bottom:9px}
+
+/* tag input */
+.tag-wrap{border:1.5px solid var(--line);border-radius:var(--r);padding:9px 10px;min-height:76px;background:#fafbfe;cursor:text;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;transition:border-color .15s,box-shadow .15s}
+.tag-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,86,219,.1);background:#fff}
+.kw-tag{display:inline-flex;align-items:center;gap:4px;background:#eef3ff;color:#1e40af;border:1px solid #c7d7ff;border-radius:var(--r-sm);padding:4px 8px;font-size:11.5px;font-weight:600;white-space:nowrap;font-family:var(--mono)}
+.kw-rm{background:none;border:none;cursor:pointer;color:#93a4d0;font-size:15px;line-height:1;padding:0 1px;display:flex;align-items:center;transition:color .1s}
+.kw-rm:hover{color:var(--red)}
+.op-btn{display:inline-flex;align-items:center;height:24px;border:none;border-radius:4px;padding:0 7px;font-size:10px;font-weight:800;letter-spacing:.6px;cursor:pointer;transition:all .12s;flex-shrink:0;font-family:var(--mono)}
+.op-btn.or{background:var(--bronze-bg);color:var(--bronze);border:1px solid var(--bronze-bd)}
+.op-btn.or:hover{background:#fde68a}
+.op-btn.and{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd)}
+.op-btn.and:hover{background:#bbf7d0}
+.tag-inp{flex:1;min-width:80px;border:none;outline:none;font-size:13px;background:transparent;color:var(--text);font-family:var(--sans)}
+.tag-inp::placeholder{color:#c0cce4}
+
+/* presets */
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.preset{border:1px solid var(--line);background:var(--white);color:var(--blue);padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;transition:all .12s;font-family:var(--mono)}
+.preset:hover{background:#eef3ff;border-color:#c7d7ff}
+.preset.dim{color:var(--slate);border-color:var(--line)}
+.preset.dim:hover{color:var(--red);background:var(--red-bg);border-color:var(--red-bd)}
+
+/* form */
+.fld-lbl{display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px}
+input[type=date],input[type=text],input[type=number],select{
+  width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:var(--r-sm);
+  font-size:13px;color:var(--text);background:var(--white);outline:none;
+  transition:border-color .15s,box-shadow .15s;font-family:var(--sans);-webkit-appearance:none;appearance:none}
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,86,219,.1)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* toggle */
+.toggle-row{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--line2);cursor:pointer;user-select:none;transition:border-color .15s}
+.toggle-row:hover{border-color:#b0c4e8}
+.toggle-row input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;margin-top:1px}
+.t-txt{font-size:12.5px;color:var(--text2);font-weight:500}
+.t-sub{font-size:11px;color:var(--slate-lt);margin-top:1px}
+
+/* search button */
+.search-btn{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;letter-spacing:-.1px;transition:background .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--sans)}
+.search-btn:hover{background:var(--navy3)}
+.search-btn:active{transform:scale(.99)}
+.search-btn:disabled{background:#94a3b8;cursor:not-allowed;transform:none}
+.btn-ico{width:15px;height:15px;flex-shrink:0}
+
+/* status */
+.st-pill{display:none;align-items:center;gap:7px;font-size:12px;color:var(--slate);padding:6px 11px;border-radius:20px;background:var(--line2);border:1px solid var(--line)}
+.st-pill.on{display:inline-flex}
+.st-pill.err{background:var(--red-bg);color:var(--red);border-color:var(--red-bd)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--blue-lt);flex-shrink:0;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+.qbox{display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:11px;color:var(--slate);background:#fafbfe;line-height:1.75;word-break:break-all;font-family:var(--mono)}
+.qbox.on{display:block}
+
+/* right panel */
+.rpanel{background:var(--white);border-radius:var(--r-xl);border:1px solid var(--line);box-shadow:var(--sh);overflow:hidden}
+.hero{background:var(--navy);padding:28px 30px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;right:-60px;bottom:-60px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.03)}
+.hero::after{content:'';position:absolute;right:60px;top:-40px;width:110px;height:110px;border-radius:50%;background:rgba(26,86,219,.18)}
+.hero-eye{font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#4d80c4;margin-bottom:10px}
+.hero-title{font-family:var(--serif);font-size:25px;font-weight:600;color:#fff;letter-spacing:-.3px;line-height:1.25}
+.hero-sub{margin-top:8px;font-size:12.5px;color:#7aa2d4}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;justify-content:space-between;padding:11px 24px;background:var(--line2);border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px}
+.tb-left{display:flex;align-items:center;gap:10px}
+.period-lbl{font-size:12px;color:var(--text3);font-weight:500}
+.sort-lbl{font-size:11px;color:var(--slate-lt);padding:3px 9px;background:var(--white);border:1px solid var(--line);border-radius:12px}
+.count-chip{background:var(--navy);color:#fff;border-radius:20px;padding:4px 12px;font-size:11.5px;font-weight:700}
+
+/* IF legend */
+.if-legend{display:flex;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.if-legend-lbl{font-size:11px;color:var(--slate-lt);font-weight:600;margin-right:2px}
+.if-badge{display:inline-flex;align-items:center;gap:3px;border-radius:5px;padding:3px 8px;font-size:11px;font-weight:700;font-family:var(--mono)}
+.if-t1{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd)}
+.if-t2{background:var(--silver-bg);color:var(--silver);border:1px solid var(--silver-bd)}
+.if-t3{background:var(--bronze-bg);color:var(--bronze);border:1px solid var(--bronze-bd)}
+.if-t4{background:var(--line2);color:var(--slate);border:1px solid var(--line)}
+
+/* query display */
+.qdisplay{display:none;margin:16px 24px 0;padding:12px 14px;background:#fafbfe;border:1px solid var(--line);border-radius:var(--r-sm);font-size:11px;color:var(--slate);line-height:1.8;word-break:break-all;font-family:var(--mono)}
+.qdisplay.on{display:block}
+.qdisplay strong{color:var(--text2);font-weight:600;font-family:var(--sans)}
+
+/* empty */
+.empty{padding:72px 24px;text-align:center}
+.empty-ico{width:52px;height:52px;margin:0 auto 16px;opacity:.22}
+.empty p{font-size:14px;line-height:1.95;color:var(--slate)}
+
+/* article list */
+.alist{padding:20px 24px;display:flex;flex-direction:column;gap:18px}
+
+/* article card */
+.acard{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--white);box-shadow:var(--sh-sm);transition:box-shadow .2s,border-color .2s}
+.acard:hover{box-shadow:var(--sh);border-color:#b0c4e8}
+.acard-head{padding:16px 18px 14px;border-bottom:1px solid var(--line2)}
+.acard-meta{display:flex;align-items:center;gap:7px;margin-bottom:10px;flex-wrap:wrap}
+.rank-badge{width:24px;height:24px;border-radius:6px;background:var(--navy);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);flex-shrink:0}
+.journal-chip{font-size:11.5px;color:var(--text3);background:var(--line2);padding:3px 8px;border-radius:4px;font-weight:500}
+.date-chip{font-size:11px;color:var(--slate-lt);margin-left:auto}
+.acard-title{font-family:var(--serif);font-size:17px;font-weight:600;line-height:1.45;color:var(--text);letter-spacing:-.1px}
+.acard-title a{text-decoration:none;color:inherit;transition:color .15s}
+.acard-title a:hover{color:var(--blue)}
+.acard-authors{margin-top:8px;font-size:11.5px;color:var(--slate-lt)}
+
+/* abstract table */
+.abs-table{width:100%;border-collapse:collapse}
+.abs-tr{border-top:1px solid var(--line2)}
+.abs-th{width:110px;padding:12px 12px 12px 18px;font-size:11.5px;font-weight:700;color:var(--navy3);text-align:left;vertical-align:top;background:#fafbfe;letter-spacing:.1px;white-space:nowrap}
+.abs-td{padding:12px 18px 12px 12px;font-size:12.5px;color:var(--text2);line-height:1.75;vertical-align:top}
+.lb{margin-bottom:8px}
+.lb:last-child{margin-bottom:0}
+.lp{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.5px;padding:2px 6px;border-radius:4px;margin-bottom:5px;font-family:var(--mono)}
+.lp-en{background:#eef3ff;color:#1e40af;border:1px solid #c7d7ff}
+.lp-ko{background:#fef9ec;color:#92600a;border:1px solid #f5d68a}
+.lt{font-size:12px;color:var(--text3);line-height:1.72}
+.impl-tr .abs-th{color:#166534;vertical-align:top;padding-top:14px}
+.impl-tr .abs-td{background:#f0fdf4;padding:12px 18px 14px 12px}
+.imp-block{margin-bottom:12px}
+.imp-block:last-child{margin-bottom:0}
+.imp-head{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.imp-icon{width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;font-style:normal}
+.imp-icon.cl{background:#dbeafe;color:#1d4ed8}
+.imp-icon.mk{background:#fce7f3;color:#9d174d}
+.imp-icon.hl{background:#fef9c3;color:#854d0e}
+.imp-lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px}
+.imp-lbl.cl{color:#1d4ed8}
+.imp-lbl.mk{color:#9d174d}
+.imp-lbl.hl{color:#854d0e}
+.imp-txt{font-size:12.5px;color:var(--text2);line-height:1.75;padding-left:27px}
+.imp-hl-txt{font-size:13px;font-weight:600;color:var(--navy2);line-height:1.55;padding:8px 12px;background:rgba(254,249,195,.6);border-left:3px solid #fbbf24;border-radius:0 6px 6px 0;margin-left:27px}
+.imp-loading{font-size:12px;color:var(--slate-lt);padding:6px 0;display:flex;align-items:center;gap:8px}
+.imp-blist{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:4px}
+.imp-blist li{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--text2);line-height:1.6}
+.imp-blist li::before{content:"";flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--bl-color,var(--blue));margin-top:6px}
+.imp-spin{width:12px;height:12px;border:2px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* card footer */
+.acard-foot{padding:10px 18px;border-top:1px solid var(--line2);background:#fafbfe;display:flex;align-items:center;justify-content:space-between}
+.pmid-txt{font-size:11px;color:var(--slate-lt);font-family:var(--mono)}
+.pm-link{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:var(--navy);color:#fff;text-decoration:none;border-radius:var(--r-sm);font-size:12px;font-weight:600;transition:background .15s}
+.pm-link:hover{background:var(--navy3)}
+
+/* footer */
+.nl-foot{margin:4px 24px 22px;padding:14px;background:var(--line2);border:1px solid var(--line);border-radius:var(--r-sm);font-size:11px;color:var(--slate-lt);line-height:1.85}
+.nl-foot strong{color:var(--slate)}
+.int-tag{display:inline-block;margin-top:8px;background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd);border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:.4px}
+
+/* ── CATEGORY TABS ── */
+.cat-tabs{display:flex;gap:0;border:1.5px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:10px;background:var(--line2)}
+.cat-tab{flex:1;padding:8px 0;font-size:12px;font-weight:700;border:none;background:transparent;cursor:pointer;transition:background .15s,color .15s;letter-spacing:.1px;display:flex;align-items:center;justify-content:center;gap:5px}
+.cat-tab .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:none;border:none;display:inline-block}
+.cat-tab.active{background:var(--white);color:var(--navy)}
+.cat-tab:not(.active){color:var(--slate-lt)}
+.cat-tab:not(.active):hover{background:rgba(255,255,255,.5);color:var(--slate)}
+.cat-tab.cv .dot{background:#1d4ed8}
+.cat-tab.pain .dot{background:#be185d}
+.cat-tab.cv.active{color:#1d4ed8}
+.cat-tab.pain.active{color:#be185d}
+.cat-count{font-size:10px;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:2px}
+.cat-tab.cv .cat-count{background:#dbeafe;color:#1d4ed8}
+.cat-tab.pain .cat-count{background:#fce7f3;color:#be185d}
+
+/* ── INFOGRAPHIC BUTTON ── */
+.infog-btn{border:1px solid var(--line);background:var(--line2);color:var(--text2);padding:6px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:var(--sans)}
+.infog-btn:hover{background:#eef3ff;border-color:#c7d7ff;color:var(--blue)}
+
+/* ── INFOGRAPHIC WRAPPER (centering stage) ── */
+.ig-outer{background:#dde3ef;padding:28px 20px 0;display:flex;flex-direction:column;align-items:center;gap:0;border-top:1px solid var(--line)}
+
+/* A4 canvas: fixed 794px wide, height auto-fills content */
+.infog{
+  width:794px;
+  min-height:1123px;
+  box-sizing:border-box;
+  padding:28px 32px 24px;
+  background:#ffffff;
+  font-family:var(--sans);
+  display:flex;
+  flex-direction:column;
+  box-shadow:0 6px 32px rgba(0,0,0,.16);
+  flex-shrink:0;
+  position:relative;
+}
+
+/* accent stripe at top */
+.infog::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:5px;
+  background:linear-gradient(90deg,#0a1628 0%,#1a56db 100%);
+}
+
+.ig-head{margin-bottom:11px;padding-top:4px;flex-shrink:0}
+.ig-head-top{display:flex;align-items:center;gap:7px;margin-bottom:6px;flex-wrap:wrap}
+.ig-tag{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono);flex-shrink:0}
+.ig-journal{font-size:10.5px;color:var(--slate);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:440px}
+.ig-date{font-size:10px;color:var(--slate-lt);margin-left:auto;white-space:nowrap;flex-shrink:0}
+.ig-title{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--navy);line-height:1.4;letter-spacing:-.1px}
+.ig-authors{margin-top:4px;font-size:10px;color:var(--slate-lt)}
+
+.ig-banner{background:var(--navy);border-radius:7px;padding:11px 16px;margin-bottom:12px;flex-shrink:0}
+.ig-banner-lbl{display:block;font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#4d80c4;margin-bottom:4px}
+.ig-banner-txt{font-size:13px;font-weight:600;color:#fff;line-height:1.45;font-family:var(--serif)}
+
+/* Flow: 2×2 grid */
+.ig-flow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;flex-shrink:0}
+.ig-step{border-radius:6px;overflow:hidden;border:1px solid var(--line);background:#fff;display:flex;flex-direction:column}
+.ig-step-head{display:flex;align-items:center;gap:6px;padding:6px 10px;flex-shrink:0}
+.ig-step-lbl{font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px}
+.ig-step-body{padding:7px 10px 9px;font-size:10.5px;color:var(--text2);line-height:1.65}
+
+/* Bottom 2-col */
+.ig-bottom{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;flex-shrink:0}
+.ig-box{border-radius:6px;border:1px solid var(--line);background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.ig-box-head{display:flex;align-items:center;gap:5px;padding:6px 10px;font-size:10px;font-weight:700;border-bottom:1px solid var(--line2);flex-shrink:0}
+.ig-box-cl .ig-box-head{color:#1d4ed8;background:#eff6ff}
+.ig-box-pr .ig-box-head{color:#be185d;background:#fdf2f8}
+.ig-box-body{padding:8px 10px;font-size:10.5px;color:var(--text2);line-height:1.65}
+
+.ig-foot{display:flex;align-items:center;gap:8px;font-size:9.5px;color:var(--slate-lt);font-family:var(--mono);padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap;margin-top:auto}
+
+/* download bar */
+.ig-dl-bar{width:794px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border:1px solid var(--line);border-top:1px solid #e2e8f0;border-radius:0 0 8px 8px;box-shadow:0 6px 32px rgba(0,0,0,.13);margin-bottom:28px}
+.ig-dl-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;background:var(--navy);color:#fff;border:none;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;cursor:pointer;transition:background .15s;font-family:var(--sans);flex-shrink:0}
+.ig-dl-btn:hover{background:var(--navy3)}
+.ig-dl-btn:disabled{background:#94a3b8;cursor:not-allowed}
+.ig-dl-note{font-size:11px;color:var(--slate-lt)}
+
+/* ── PROVIDER SELECTOR ── */
+.prov-wrap{display:flex;flex-direction:column;gap:6px}
+.prov-opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid var(--line);border-radius:var(--r-sm);cursor:pointer;transition:border-color .15s,background .15s;background:var(--white)}
+.prov-opt:hover{border-color:#b0c4e8;background:#fafbff}
+.prov-opt.selected{border-color:var(--blue);background:#f0f5ff}
+.prov-opt input[type=radio]{width:14px;height:14px;accent-color:var(--blue);cursor:pointer;flex-shrink:0;margin-top:2px}
+.prov-name{font-size:12.5px;font-weight:700;color:var(--text)}
+.prov-desc{font-size:10.5px;color:var(--slate-lt);margin-top:1px}
+.prov-badge{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:6px}
+.prov-badge.fast{background:#dcfce7;color:#166534}
+.prov-badge.free{background:#dbeafe;color:#1d4ed8}
+.prov-badge.slow{background:#fef9c3;color:#854d0e}
+.prov-key-wrap{margin-top:7px;display:none}
+.prov-key-wrap.show{display:block}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c8d4e8;border-radius:3px}
+
+@media(max-width:980px){.shell{grid-template-columns:1fr}.sidebar{position:static}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sb-head">
+    <h1>Viatris PubMed Searcher</h1>
+    <p>키워드 조합 · 기간 · 필터 · IF 정렬</p>
+  </div>
+  <div class="sb-body">
+
+    <div>
+      <div class="sec-lbl">검색 키워드</div>
+
+      <!-- 카테고리 탭 -->
+      <div class="cat-tabs">
+        <button class="cat-tab cv active" id="tab-cv">
+          <span class="dot"></span>CV
+          <span class="cat-count" id="cnt-cv">4</span>
+        </button>
+        <button class="cat-tab pain" id="tab-pain">
+          <span class="dot"></span>PAIN
+          <span class="cat-count" id="cnt-pain">4</span>
+        </button>
+      </div>
+
+      <!-- 태그 입력 -->
+      <div class="tag-wrap" id="tagWrap">
+        <input class="tag-inp" id="tagInput" placeholder="입력 후 Enter 또는 쉼표로 추가…"/>
+      </div>
+
+      <!-- 카테고리별 프리셋 -->
+      <div class="presets" style="margin-top:9px" id="presetArea"></div>
+    </div>
+
+    <div>
+      <div class="sec-lbl">검색 기간</div>
+      <div class="grid2">
+        <div><label class="fld-lbl" for="fromDate">시작일</label><input type="date" id="fromDate"/></div>
+        <div><label class="fld-lbl" for="toDate">종료일</label><input type="date" id="toDate"/></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-lbl">검색 옵션</div>
+      <div class="grid2">
+        <div>
+          <label class="fld-lbl" for="fieldMode">검색 필드</label>
+          <select id="fieldMode">
+            <option value="TitleAbstract" selected>Title / Abstract</option>
+            <option value="Title">Title only</option>
+          </select>
+        </div>
+        <div>
+          <label class="fld-lbl" for="maxResults">최대 논문 수</label>
+          <input type="number" id="maxResults" value="10" min="1" max="30"/>
+        </div>
+        <div style="grid-column:1/-1">
+          <label class="fld-lbl" for="excludeKw">제외 키워드 (쉼표 구분)</label>
+          <input type="text" id="excludeKw" placeholder="예: mouse, in vitro, pediatric"/>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <label class="toggle-row" for="excludeBasic">
+        <input type="checkbox" id="excludeBasic" checked/>
+        <div><div class="t-txt">동물 · 기초 연구 제외</div><div class="t-sub">mice, rats, in vitro, animal model 자동 제외</div></div>
+      </label>
+      <label class="toggle-row" for="sortByIF">
+        <input type="checkbox" id="sortByIF" checked/>
+        <div><div class="t-txt">IF 기준 중요도 정렬</div><div class="t-sub">Impact Factor 높은 논문을 상단 노출</div></div>
+      </label>
+    </div>
+
+    <div>
+      <div class="sec-lbl">AI 분석 엔진</div>
+      <div class="prov-wrap" id="provWrap">
+        <label class="prov-opt selected" id="prov-groq">
+          <input type="radio" name="aiProvider" value="groq" checked/>
+          <div style="flex:1;min-width:0">
+            <div class="prov-name">Groq <span class="prov-badge fast">⚡ 초고속</span></div>
+            <div class="prov-desc">Llama 3.1 · LPU 기반 · 기본값</div>
+          </div>
+        </label>
+        <label class="prov-opt" id="prov-gemini">
+          <input type="radio" name="aiProvider" value="gemini"/>
+          <div style="flex:1;min-width:0">
+            <div class="prov-name">Google Gemini Flash <span class="prov-badge fast">빠름</span></div>
+            <div class="prov-desc">Gemini 1.5 Flash · Groq 실패 시 대체</div>
+          </div>
+        </label>
+        <label class="prov-opt" id="prov-pollinations">
+          <input type="radio" name="aiProvider" value="pollinations"/>
+          <div style="flex:1;min-width:0">
+            <div class="prov-name">Pollinations AI <span class="prov-badge slow">느림</span></div>
+            <div class="prov-desc">키 불필요 · 간헐적 실패 있음</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <button class="search-btn" id="searchBtn">
+      <svg class="btn-ico" viewBox="0 0 20 20" fill="none">
+        <circle cx="9" cy="9" r="5.5" stroke="white" stroke-width="1.8"/>
+        <path d="M13.5 13.5L17 17" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      검색 실행
+    </button>
+
+    <div>
+      <div class="st-pill" id="stPill"><span class="dot" id="dot"></span><span id="stTxt"></span></div>
+      <div class="qbox" id="qbox"></div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- RIGHT PANEL -->
+<section class="rpanel">
+  <div class="hero">
+    <div class="hero-eye">Viatris</div>
+    <div class="hero-title">Viatris PubMed Searcher</div>
+    <div class="hero-sub" id="periodText">검색 전입니다</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="tb-left">
+      <span class="period-lbl" id="tbPeriod">—</span>
+      <span class="sort-lbl" id="sortLbl" style="display:none"></span>
+    </div>
+    <span class="count-chip" id="countChip">Articles 0</span>
+  </div>
+
+  <div class="if-legend">
+    <span class="if-legend-lbl">IF 범례</span>
+    <span class="if-badge if-t1">★ ≥ 30</span>
+    <span class="if-badge if-t2">◆ 10 – 29</span>
+    <span class="if-badge if-t3">● 5 – 9</span>
+    <span class="if-badge if-t4">— &lt; 5 / 미확인</span>
+  </div>
+
+  <div class="qdisplay" id="qdisplay"></div>
+
+  <div id="mainContent">
+    <div class="empty">
+      <svg class="empty-ico" viewBox="0 0 52 52" fill="none">
+        <circle cx="24" cy="24" r="14" stroke="#94a3b8" stroke-width="2.5"/>
+        <path d="M34 34L46 46" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M24 18v12M18 24h12" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <p>검색 조건을 설정하고 <strong>검색 실행</strong>을 눌러주세요.<br>
+      키워드 사이 OR/AND 토글 · IF 정렬 · 기간 필터를 자유롭게 조합하세요.</p>
+    </div>
+  </div>
+
+  <div class="nl-foot">
+    <strong>Notes</strong><br>
+    • Impact Factor(IF)는 최신 JCR 기준 추정값이며 연도에 따라 차이가 있을 수 있습니다.<br>
+    • IF 미확인 저널은 정렬 시 하단 배치됩니다.<br>
+    • Structured abstract는 Background / Methods / Results / Conclusion 기준으로 분리됩니다.<br>
+    • 임상적 시사점은 Results / Conclusion 기반으로 자동 생성됩니다.
+    <div><span class="int-tag">INTERNAL USE ONLY — 외부 유출 금지</span></div>
+  </div>
+</section>
+
+</div>
+
+<script>
+const NCBI_EMAIL="karmawolf@gmail.com";
+
+/* ── IF TABLE ── */
+const IF_TABLE={
+  "new england journal of medicine":120.9,"nejm":120.9,
+  "the lancet":168.9,"lancet":168.9,
+  "jama":63.1,"journal of the american medical association":63.1,
+  "nature medicine":58.7,
+  "bmj":39.0,"the bmj":39.0,"british medical journal":39.0,
+  "lancet diabetes endocrinology":44.5,"lancet diabetes & endocrinology":44.5,
+  "lancet oncology":41.6,
+  "european heart journal":37.6,
+  "circulation":35.5,
+  "nature cardiovascular research":32.0,
+  "annals of internal medicine":25.2,
+  "jama internal medicine":22.4,
+  "journal of the american college of cardiology":24.0,"jacc":24.0,
+  "jama cardiology":24.0,
+  "european journal of heart failure":18.2,
+  "diabetes care":16.2,
+  "cardiovascular research":13.1,
+  "diabetologia":10.4,
+  "arteriosclerosis thrombosis and vascular biology":10.4,
+  "arteriosclerosis, thrombosis, and vascular biology":10.4,"atvb":10.4,
+  "thrombosis and haemostasis":10.0,
+  "european journal of preventive cardiology":10.8,
+  "heart":10.2,
+  "american heart journal":9.4,
+  "american journal of medicine":9.1,
+  "hypertension":8.0,
+  "diabetes":8.5,
+  "journal of the american heart association":6.0,"jaha":6.0,
+  "clinical pharmacokinetics":5.6,
+  "atherosclerosis":5.4,
+  "journal of lipid research":5.8,
+  "lipids in health and disease":4.5,
+  "journal of clinical lipidology":5.1,
+  "british journal of clinical pharmacology":5.0,
+  "drugs":5.2,
+  "current opinion in lipidology":4.3,
+  "cardiovascular drugs and therapy":4.1,
+  "american journal of cardiology":3.7,
+  "journal of cardiovascular pharmacology":3.8,
+  "pharmacology research perspectives":4.0,
+  "international journal of cardiology":3.9,
+  "clinical cardiology":3.5,
+  "journal of clinical pharmacology":3.2,
+  "medicine":2.1,
+  "internal medicine":1.2,
+};
+
+function getIF(j){
+  if(!j) return null;
+  const k=j.toLowerCase().replace(/[^a-z0-9& ]/g," ").replace(/\s+/g," ").trim();
+  if(IF_TABLE[k]!=null) return IF_TABLE[k];
+  for(const [kk,v] of Object.entries(IF_TABLE)){
+    if(k.includes(kk)||kk.includes(k)) return v;
+  }
+  return null;
+}
+function ifTier(v){if(v===null)return "if-t4";if(v>=30)return "if-t1";if(v>=10)return "if-t2";if(v>=5)return "if-t3";return "if-t4";}
+function ifIcon(v){if(v===null)return "";if(v>=30)return "★ ";if(v>=10)return "◆ ";if(v>=5)return "● ";return "";}
+function ifLbl(v){return v===null?"IF —":"IF "+v.toFixed(1);}
+
+/* ── CATEGORY KEYWORD STORE ── */
+const CATS={
+  cv:{
+    label:"CV",
+    presets:["hyperlipidemia","LDL-C","atorvastatin","rosuvastatin","ezetimibe","PCSK9","ESC guideline","statin","dyslipidemia","cardiovascular risk","lipid-lowering","lipoprotein"],
+    defaults:[{kw:"hyperlipidemia",op:"OR"},{kw:"LDL-C",op:"OR"},{kw:"atorvastatin",op:"OR"},{kw:"ESC guideline",op:"OR"}]
+  },
+  pain:{
+    label:"PAIN",
+    presets:["celecoxib","pregabalin","neuropathic pain","COX-2 inhibitor","chronic pain","osteoarthritis","fibromyalgia","postherpetic neuralgia","diabetic neuropathy","gabapentinoid","NSAID","pain management"],
+    defaults:[{kw:"celecoxib",op:"OR"},{kw:"pregabalin",op:"OR"},{kw:"neuropathic pain",op:"OR"},{kw:"chronic pain",op:"OR"}]
+  }
+};
+
+let activeCategory="cv";
+const kwStore={
+  cv:CATS.cv.defaults.map(k=>({...k})),
+  pain:CATS.pain.defaults.map(k=>({...k}))
+};
+
+/* active keywords shorthand */
+function kws(){return kwStore[activeCategory];}
+
+function updateCountBadges(){
+  document.getElementById("cnt-cv").textContent=kwStore.cv.length;
+  document.getElementById("cnt-pain").textContent=kwStore.pain.length;
+}
+
+function renderPresets(){
+  const area=document.getElementById("presetArea");
+  const cat=CATS[activeCategory];
+  area.innerHTML="";
+  cat.presets.forEach(kw=>{
+    const btn=document.createElement("button");
+    btn.className="preset";btn.dataset.kw=kw;btn.textContent=kw;
+    btn.addEventListener("click",()=>addKw(kw));
+    area.appendChild(btn);
+  });
+  const clr=document.createElement("button");
+  clr.className="preset dim";clr.id="clearAll";clr.textContent="전체 삭제";
+  clr.addEventListener("click",()=>{kwStore[activeCategory]=[];renderTags();updateCountBadges();});
+  area.appendChild(clr);
+}
+
+function renderTags(){
+  const wrap=document.getElementById("tagWrap");
+  const inp=document.getElementById("tagInput");
+  wrap.querySelectorAll(".kw-tag,.op-btn").forEach(el=>el.remove());
+  kws().forEach((item,i)=>{
+    const sp=document.createElement("span");sp.className="kw-tag";sp.dataset.idx=i;
+    sp.innerHTML=`${esc(item.kw)}<button class="kw-rm" data-idx="${i}" title="삭제">×</button>`;
+    wrap.insertBefore(sp,inp);
+    if(i<kws().length-1){
+      const btn=document.createElement("button");
+      btn.className=`op-btn ${item.op.toLowerCase()}`;btn.dataset.idx=i;
+      btn.textContent=item.op;btn.title="클릭하여 OR/AND 전환";
+      wrap.insertBefore(btn,inp);
+    }
+  });
+}
+
+function addKw(kw){
+  const c=kw.trim().replace(/"/g,"");
+  if(c&&!kws().find(k=>k.kw===c)){kws().push({kw:c,op:"OR"});renderTags();updateCountBadges();}
+}
+function removeKw(i){kws().splice(i,1);renderTags();updateCountBadges();}
+function toggleOp(i){kws()[i].op=kws()[i].op==="OR"?"AND":"OR";renderTags();}
+
+/* tab switching */
+function switchCategory(cat){
+  activeCategory=cat;
+  document.querySelectorAll(".cat-tab").forEach(t=>{
+    t.classList.toggle("active",t.id===`tab-${cat}`);
+  });
+  renderTags();
+  renderPresets();
+}
+
+document.getElementById("tab-cv").addEventListener("click",()=>switchCategory("cv"));
+document.getElementById("tab-pain").addEventListener("click",()=>switchCategory("pain"));
+
+document.getElementById("tagInput").addEventListener("keydown",e=>{
+  const v=e.target.value;
+  if(["Enter",","].includes(e.key)){e.preventDefault();if(v.trim()){addKw(v);e.target.value="";}}
+  else if(e.key==="Backspace"&&!v&&kws().length){removeKw(kws().length-1);}
+});
+document.getElementById("tagInput").addEventListener("blur",e=>{if(e.target.value.trim()){addKw(e.target.value);e.target.value="";}});
+document.getElementById("tagWrap").addEventListener("click",e=>{
+  if(e.target.classList.contains("kw-rm")) removeKw(parseInt(e.target.dataset.idx));
+  else if(e.target.classList.contains("op-btn")) toggleOp(parseInt(e.target.dataset.idx));
+  else document.getElementById("tagInput").focus();
+});
+
+/* ── PROVIDER HIGHLIGHT ── */
+document.querySelectorAll("input[name=aiProvider]").forEach(radio=>{
+  radio.addEventListener("change",()=>{
+    document.querySelectorAll(".prov-opt").forEach(opt=>{
+      opt.classList.toggle("selected",opt.id===`prov-${radio.value}`);
+    });
+  });
+});
+
+/* ── DATES ── */
+function setDates(){
+  const t=new Date(),fim=new Date(t.getFullYear(),t.getMonth(),1),lme=new Date(fim-1),lms=new Date(lme.getFullYear(),lme.getMonth(),1);
+  const f=d=>d.toISOString().slice(0,10);
+  document.getElementById("fromDate").value=f(lms);document.getElementById("toDate").value=f(lme);
+}
+
+/* ── QUERY ── */
+function buildQuery(){
+  const from=document.getElementById("fromDate").value,to=document.getElementById("toDate").value;
+  const field=document.getElementById("fieldMode").value;
+  const eb=document.getElementById("excludeBasic").checked;
+  const ex=document.getElementById("excludeKw").value.split(",").map(k=>k.trim().replace(/"/g,"")).filter(Boolean);
+  const ft=field==="Title"?"[Title]":"[Title/Abstract]";
+  const kw=kws();
+  let kc=`"${kw[0].kw}"${ft}`;
+  for(let i=1;i<kw.length;i++) kc+=` ${kw[i-1].op} "${kw[i].kw}"${ft}`;
+  let q=`(${kc}) AND ("${from}"[Date - Publication] : "${to}"[Date - Publication])`;
+  if(eb) q+=` NOT (animals[mh] NOT humans[mh]) NOT ("mice"[Title/Abstract] OR "rats"[Title/Abstract] OR "mouse"[Title/Abstract] OR "cell"[Title/Abstract] OR "cells"[Title/Abstract] OR "in vitro"[Title/Abstract] OR "animal model"[Title/Abstract])`;
+  if(ex.length) q+=` NOT (${ex.map(k=>`"${k}"${ft}`).join(" OR ")})`;
+  return q;
+}
+
+/* ── HTTP ── */
+async function fj(url){const r=await fetch(url);if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.json();}
+async function ft2(url){const r=await fetch(url);if(!r.ok)throw new Error(`HTTP ${r.status}`);return r.text();}
+
+/* ── TRANSLATE ── */
+async function toKo(text){
+  if(!text) return "";
+  try{const d=await fj(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=${encodeURIComponent(text)}`);return(d[0]||[]).map(s=>s[0]||"").join(" ").trim();}catch{return "";}
+}
+
+/* ── PARSE ── */
+function stripToAbs(text){
+  const lines=text.split("\n").map(x=>x.trim()).filter(Boolean);let started=false;const out=[];
+  for(const l of lines){const lo=l.toLowerCase();if(!started&&(lo.startsWith("background")||lo.startsWith("objective")||lo.startsWith("methods")||lo.startsWith("aim:")||lo.startsWith("purpose:"))) started=true;if(started) out.push(l);}
+  return out.length?out.join(" "):lines.join(" ");
+}
+function parseSec(text){
+  const t=text.replace(/\s+/g," ").trim();
+  const lbls=[{k:"background",re:/background:|objective[s]?:|purpose:|aim:/i},{k:"methods",re:/methods?:|design:|patients and methods:|materials and methods:/i},{k:"results",re:/results?:|findings:/i},{k:"conclusion",re:/conclusions?:|interpretation:/i}];
+  const hits=lbls.map(l=>{const m=t.match(l.re);return m?{k:l.k,i:m.index,n:m[0].length}:null;}).filter(Boolean).sort((a,b)=>a.i-b.i);
+  if(hits.length){const s={background:"",methods:"",results:"",conclusion:""};hits.forEach((h,i)=>{s[h.k]=t.slice(h.i+h.n,i<hits.length-1?hits[i+1].i:undefined).trim();});return s;}
+  const ss=t.split(". ").map(s=>s.trim()).filter(Boolean);
+  return{background:ss[0]?ss[0]+".":"",methods:ss[1]?ss[1]+".":"",results:ss.slice(2,4).join(". ")+".",conclusion:ss.slice(4,6).join(". ")+"."};
+}
+/* ── API KEYS ── */
+const GROQ_KEY="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";
+const GEMINI_KEY="AIzaSyAPk1TS4RMkgmYQwtCQz_n0KSvOQsqUH2U";
+
+/* ── PARSE JSON ── */
+function parseJSON(raw){
+  const clean=(raw||"").replace(/^```(?:json)?\s*/,"").replace(/\s*```$/,"").trim();
+  const fb=clean.indexOf("{"),lb=clean.lastIndexOf("}");
+  if(fb===-1||lb===-1) throw new Error("JSON 없음");
+  return JSON.parse(clean.slice(fb,lb+1));
+}
+
+/* ── VIATRIS PRODUCT CONTEXT ── */
+const VIATRIS_CONTEXT=`
+You are writing for Viatris Korea medical representatives. Viatris key products:
+
+[CV / 지질·심혈관]
+- 리피토® (atorvastatin) — 고강도 스타틴, LDL-C 감소 55~60%
+- 카듀엣® (atorvastatin + amlodipine) — 이상지질혈증 + 고혈압 복합제
+- 노바스크® (amlodipine) — CCB 고혈압·협심증
+
+[PAIN / 통증·신경]
+- 쎄레브렉스® (celecoxib) — 선택적 COX-2 억제제, 골관절염·류마티스·급성통증
+- 리리카® (pregabalin) — 신경병증성 통증, 섬유근육통, 부분 발작
+
+When writing clinical and marketing sections:
+- ALWAYS connect the paper's findings to the most relevant Viatris product(s) above
+- For clinical: explain how this evidence supports or guides use of the relevant Viatris product in practice
+- For marketing: give the MR a concrete talk-track — which Viatris product, which patient profile, which data point to lead with
+- If the paper is about a competitor drug, highlight how the findings support switching to or combining with the relevant Viatris product
+- Use product trade names (리피토®, 쎄레브렉스® etc.) naturally in the text
+`.trim();
+
+/* ── PROMPT ── */
+function buildPrompt(title, en){
+  const abs=[en.background,en.methods,en.results,en.conclusion].filter(Boolean).join(" ").slice(0,2500);
+  const sys=`You are a medical research analyst for Viatris Korea. Respond ONLY with a valid JSON object. No markdown, no code block, no explanation.\n\n${VIATRIS_CONTEXT}`;
+  const usr=`Analyze this medical paper abstract and return structured Korean data.
+
+Title: ${title}
+Abstract: ${abs}
+
+Rules:
+- background/methods/results/conclusion: each bullet = ONE complete Korean sentence (40-60 chars). Do NOT truncate — write a proper sentence per point. Split long content into multiple single-sentence bullets.
+- clinical: 2-3 full sentences — concrete treatment decisions citing this paper's numbers/drugs, explicitly connecting to the relevant Viatris product (리피토®/카듀엣®/노바스크®/쎄레브렉스®/리리카®)
+- marketing: 1-2 full sentences — specific MR talk-track using this paper to promote the relevant Viatris product to a physician
+- headline: one punchy Korean sentence that highlights the Viatris product angle
+- key_stats: up to 4 key numbers (HR, OR, %, p-value)
+- study_table: 5 rows with keys "항목" and "내용" (설계/대상/중재/비교군/추적기간)
+- chart_data: 2-4 items with numeric "value"
+
+Return EXACTLY this JSON (no other text):
+{"headline":"...","background":["...","..."],"methods":["...","..."],"results":["...","...","..."],"conclusion":["...","..."],"key_stats":[{"label":"...","value":"...","unit":"..."}],"study_table":[{"항목":"설계","내용":"..."},{"항목":"대상","내용":"..."},{"항목":"중재","내용":"..."},{"항목":"비교군","내용":"..."},{"항목":"추적기간","내용":"..."}],"chart_data":[{"label":"...","value":0},{"label":"...","value":0}],"clinical":"문장1. 문장2. 문장3.","marketing":"문장1. 문장2."}`;
+  return{sys,usr};
+}
+
+/* ── GROQ ── */
+async function callGroq(title, en){
+  const{sys,usr}=buildPrompt(title,en);
+  const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_KEY},
+    body:JSON.stringify({
+      model:"llama-3.3-70b-versatile",
+      max_tokens:1500,temperature:0.1,
+      response_format:{type:"json_object"},
+      messages:[{role:"system",content:sys},{role:"user",content:usr}]
+    })
+  });
+  if(!resp.ok){
+    const e=await resp.json().catch(()=>({}));
+    throw new Error("Groq "+(e?.error?.message||resp.status));
+  }
+  const d=await resp.json();
+  return parseJSON(d.choices?.[0]?.message?.content||"");
+}
+
+/* ── GEMINI ── */
+async function callGemini(title, en){
+  const{sys,usr}=buildPrompt(title,en);
+  const resp=await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`,
+    {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        contents:[{role:"user",parts:[{text:sys+"\n\n"+usr}]}],
+        generationConfig:{responseMimeType:"application/json",maxOutputTokens:1500,temperature:0.1}
+      })
+    }
+  );
+  if(!resp.ok){
+    const e=await resp.json().catch(()=>({}));
+    throw new Error("Gemini "+(e?.error?.message||resp.status));
+  }
+  const d=await resp.json();
+  return parseJSON(d.candidates?.[0]?.content?.parts?.[0]?.text||"");
+}
+
+/* ── POLLINATIONS ── */
+async function callPollinations(title, en){
+  const{sys,usr}=buildPrompt(title,en);
+  const resp=await fetch("https://text.pollinations.ai/",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"openai",jsonMode:true,
+      messages:[{role:"system",content:sys},{role:"user",content:usr}]})
+  });
+  if(!resp.ok) throw new Error("Pollinations "+resp.status);
+  return parseJSON(await resp.text());
+}
+
+/* ── ROUTER: 선택 제공업체 우선, 실패 시 자동 폴백 ── */
+async function buildImplication(title, en){
+  const prov=document.querySelector("input[name=aiProvider]:checked")?.value||"groq";
+  const order=prov==="groq"?["groq","gemini","pollinations"]
+    :prov==="gemini"?["gemini","groq","pollinations"]
+    :["pollinations","groq","gemini"];
+  for(const p of order){
+    try{
+      setSt(`AI 분석 중… (${p})`);
+      if(p==="groq") return await callGroq(title,en);
+      if(p==="gemini") return await callGemini(title,en);
+      return await callPollinations(title,en);
+    }catch(e){
+      console.warn(`[${p}] 실패 → 다음 시도:`,e.message);
+    }
+  }
+  return{headline:"모든 AI 서비스 실패",background:[],methods:[],results:[],conclusion:[],
+    key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
+}
+
+
+/* ── STATUS ── */
+function setSt(msg,isErr=false,spin=true){
+  const pill=document.getElementById("stPill"),dot=document.getElementById("dot"),txt=document.getElementById("stTxt");
+  txt.textContent=msg;pill.className="st-pill on"+(isErr?" err":"");dot.style.display=spin&&!isErr?"block":"none";
+}
+function clearSt(){document.getElementById("stPill").className="st-pill";}
+
+/* ── BULLET LIST HELPER ── */
+function bulletsHTML(arr,color){
+  if(!Array.isArray(arr)||!arr.length) return `<div class="imp-txt" style="color:var(--slate-lt)">—</div>`;
+  return`<ul class="imp-blist" style="--bl-color:${color||"var(--blue)"}">${arr.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`;
+}
+
+/* ── CARD HTML ── */
+function impHTML(imp){
+  if(!imp){
+    return `<div class="imp-txt" style="color:var(--slate-lt)">분석 생성 실패</div>`;
+  }
+  // clinical/marketing: string (new) or array (legacy fallback) → always render as paragraphs
+  const toStr=v=>Array.isArray(v)?v.join(" "):(v||"—");
+  const cl=toStr(imp.clinical);
+  const mk=toStr(imp.marketing);
+  const hl=imp.headline||"—";
+  return`
+<div class="imp-block">
+  <div class="imp-head"><i class="imp-icon cl">🩺</i><span class="imp-lbl cl">임상 적용</span></div>
+  <div class="imp-txt">${esc(cl)}</div>
+</div>
+<div class="imp-block">
+  <div class="imp-head"><i class="imp-icon mk">📋</i><span class="imp-lbl mk">실무 활용</span></div>
+  <div class="imp-txt">${esc(mk)}</div>
+</div>
+<div class="imp-block">
+  <div class="imp-head"><i class="imp-icon hl">⚡</i><span class="imp-lbl hl">핵심 한줄</span></div>
+  <div class="imp-hl-txt">${esc(hl)}</div>
+</div>`;
+}
+
+/* ── INFOGRAPHIC HELPERS ── */
+function igBullets(arr, dotColor){
+  if(!Array.isArray(arr)||!arr.length) return `<div style="font-size:11px;color:#94a3b8;padding:2px 0">—</div>`;
+  return arr.map(b=>`<div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:5px">
+<span style="flex-shrink:0;width:6px;height:6px;border-radius:50%;background:${dotColor};margin-top:5px;display:block"></span>
+<span style="font-size:11.5px;color:#1e293b;line-height:1.6;word-break:keep-all">${esc(b)}</span></div>`).join("");
+}
+
+function igKeyStats(stats){
+  if(!Array.isArray(stats)||!stats.length) return "";
+  const cols=stats.slice(0,4);
+  return`<div style="display:grid;grid-template-columns:repeat(${cols.length},1fr);gap:7px">
+${cols.map(s=>`<div style="background:#0a1628;border-radius:7px;padding:11px 10px 9px;text-align:center">
+  <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#4d80c4;margin-bottom:4px;line-height:1.2">${esc(s.label)}</div>
+  <div style="font-size:24px;font-weight:700;color:#fff;line-height:1;font-family:'IBM Plex Mono',monospace">${esc(s.value)}</div>
+  <div style="font-size:9.5px;color:#7aa2d4;margin-top:3px;line-height:1.35">${esc(s.unit||"")}</div>
+</div>`).join("")}
+</div>`;
+}
+
+function igTable(rows){
+  if(!Array.isArray(rows)||!rows.length) return "";
+  return`<table style="width:100%;border-collapse:collapse;font-size:11px">
+${rows.map((r,i)=>`<tr style="background:${i%2===0?"#f8faff":"#fff"}">
+  <td style="padding:6px 9px;font-weight:700;color:#1e3a8a;white-space:nowrap;border:1px solid #e2e8f0;width:30%">${esc(r["항목"]||r.label||"")}</td>
+  <td style="padding:6px 9px;color:#334155;border:1px solid #e2e8f0;line-height:1.5">${esc(r["내용"]||r.value||"")}</td>
+</tr>`).join("")}
+</table>`;
+}
+
+function igBarChart(data){
+  if(!Array.isArray(data)||data.length<2) return "";
+  const vals=data.map(d=>parseFloat(d.value)||0);
+  const maxV=Math.max(...vals,0.01);
+  const W=330, H=110, padL=14, padR=8, padB=28, padT=12;
+  const chartW=W-padL-padR, chartH=H-padB-padT;
+  const bw=Math.min(52, Math.floor(chartW/data.length)-12);
+  const gap=(chartW-bw*data.length)/(data.length+1);
+  const colors=["#1a56db","#ea580c","#065f46","#7c3aed","#be185d","#0891b2"];
+  const bars=data.map((d,i)=>{
+    const bh=Math.max(3,Math.round((parseFloat(d.value)||0)/maxV*chartH));
+    const x=padL+gap*(i+1)+bw*i;
+    const y=padT+chartH-bh;
+    const col=colors[i%colors.length];
+    const lbl=(d.label||"").slice(0,10);
+    const val=typeof d.value==="number"?d.value.toFixed(1):d.value;
+    return`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="3" fill="${col}" opacity=".85"/>
+<text x="${x+bw/2}" y="${y-5}" text-anchor="middle" font-size="10" font-weight="700" fill="${col}" font-family="IBM Plex Mono,monospace">${esc(String(val))}</text>
+<text x="${x+bw/2}" y="${H-5}" text-anchor="middle" font-size="9.5" fill="#64748b" font-family="IBM Plex Sans,sans-serif">${esc(lbl)}</text>`;
+  }).join("");
+  const gridLines=[0.25,0.5,0.75,1].map(pct=>{
+    const y=padT+chartH*(1-pct);
+    const v=(maxV*pct).toFixed(1);
+    return`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#e2e8f0" stroke-width="1"/>
+<text x="${padL-3}" y="${y+3.5}" text-anchor="end" font-size="8.5" fill="#94a3b8" font-family="IBM Plex Mono,monospace">${v}</text>`;
+  }).join("");
+  return`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible">
+  ${gridLines}
+  <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+chartH}" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="${padL}" y1="${padT+chartH}" x2="${W-padR}" y2="${padT+chartH}" stroke="#cbd5e1" stroke-width="1"/>
+  ${bars}
+</svg>`;
+}
+
+function buildInfographic(p){
+  const ifVal=p.ifVal;
+  const tier=ifTier(ifVal);
+  const tierColor={"if-t1":"#92400e","if-t2":"#374151","if-t3":"#78350f","if-t4":"#64748b"}[tier]||"#64748b";
+  const tierBg={"if-t1":"#fffbeb","if-t2":"#f8fafc","if-t3":"#fef9ec","if-t4":"#f1f5f9"}[tier]||"#f1f5f9";
+  const imp=p.imp||{};
+  const headline=imp.headline||"—";
+  const toArr=(v,fallback)=>Array.isArray(v)?v:(v?[v]:(fallback?[fallback]:[]));
+  const toArrFromStr=(v)=>{
+    if(Array.isArray(v)) return v;
+    if(!v) return [];
+    return v.split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(s=>s.length>2);
+  };
+  const bg=toArr(imp.background, p.ko.background||p.en.background);
+  const mt=toArr(imp.methods,    p.ko.methods   ||p.en.methods);
+  const rs=toArr(imp.results,    p.ko.results   ||p.en.results);
+  const cn=toArr(imp.conclusion, p.ko.conclusion||p.en.conclusion);
+  const cl=toArrFromStr(imp.clinical);
+  const mk=toArrFromStr(imp.marketing);
+  const ks=Array.isArray(imp.key_stats)?imp.key_stats:[];
+  const tbl=Array.isArray(imp.study_table)?imp.study_table:[];
+  const cd=Array.isArray(imp.chart_data)?imp.chart_data:[];
+  const slug=(p.title||"infographic").replace(/[^a-zA-Z0-9가-힣]/g,"_").slice(0,40);
+
+  const hasChart=cd.length>=2;
+  const hasTbl=tbl.length>0;
+
+  return`<div class="ig-outer">
+<div class="infog" id="infog-${esc(p.pmid)}">
+
+  <!-- ① 헤더 -->
+  <div style="margin-bottom:11px;padding-top:4px;border-bottom:1px solid #e2e8f0;padding-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span style="padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;font-family:'IBM Plex Mono',monospace;background:${tierBg};color:${tierColor};border:1px solid ${tierColor}40;flex-shrink:0">${ifLbl(ifVal)}</span>
+      <span style="font-size:12px;color:#64748b;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px">${esc(p.journal)}</span>
+      <span style="font-size:11px;color:#94a3b8;margin-left:auto;white-space:nowrap;flex-shrink:0">${esc(p.pubdate)}</span>
+    </div>
+    <div style="font-family:'IBM Plex Serif',serif;font-size:17px;font-weight:600;color:#0a1628;line-height:1.38">${esc(p.title)}</div>
+    ${p.authors?`<div style="margin-top:4px;font-size:11px;color:#94a3b8">${esc(p.authors)}</div>`:""}
+  </div>
+
+  <!-- ② 핵심 메시지 -->
+  <div style="background:#0a1628;border-radius:7px;padding:11px 16px;margin-bottom:11px">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#4d80c4;margin-bottom:4px">⚡ 핵심 메시지</div>
+    <div style="font-family:'IBM Plex Serif',serif;font-size:14.5px;font-weight:600;color:#fff;line-height:1.5">${esc(headline)}</div>
+  </div>
+
+  <!-- ③ Key Stats + Study Table -->
+  ${(ks.length||hasTbl)?`<div style="display:grid;grid-template-columns:${ks.length&&hasTbl?"1fr 1fr":"1fr"};gap:10px;margin-bottom:11px">
+    ${ks.length?`<div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:6px">📊 핵심 수치</div>
+      ${igKeyStats(ks)}
+    </div>`:""}
+    ${hasTbl?`<div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:6px">📋 연구 개요</div>
+      ${igTable(tbl)}
+    </div>`:""}
+  </div>`:""}
+
+  <!-- ④ Background + Methods -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <div style="border-radius:6px;border:1px solid #dbeafe;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#eff6ff;border-left:3px solid #1e3a8a">
+        <span style="font-size:12px">📌</span>
+        <span style="font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#1e3a8a">Background</span>
+      </div>
+      <div style="padding:8px 11px 10px">${igBullets(bg,"#1e3a8a")}</div>
+    </div>
+    <div style="border-radius:6px;border:1px solid #bbf7d0;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#f0fdf4;border-left:3px solid #065f46">
+        <span style="font-size:12px">🔬</span>
+        <span style="font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#065f46">Methods</span>
+      </div>
+      <div style="padding:8px 11px 10px">${igBullets(mt,"#065f46")}</div>
+    </div>
+  </div>
+
+  <!-- ⑤ Results + Bar Chart -->
+  <div style="border-radius:6px;border:1.5px solid #fed7aa;overflow:hidden;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:7px;padding:7px 13px;background:#fff7ed;border-left:4px solid #ea580c">
+      <span style="font-size:12px">📊</span>
+      <span style="font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#7c2d12">Results</span>
+      <span style="font-size:10px;font-weight:600;color:#ea580c;margin-left:3px">핵심 결과</span>
+    </div>
+    <div style="display:grid;grid-template-columns:${hasChart?"1fr 1fr":"1fr"};gap:0">
+      <div style="padding:9px 13px 11px">${igBullets(rs,"#ea580c")}</div>
+      ${hasChart?`<div style="padding:10px 12px;border-left:1px solid #fed7aa;background:#fffaf5">
+        <div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px">결과 비교</div>
+        ${igBarChart(cd)}
+      </div>`:""}
+    </div>
+  </div>
+
+  <!-- ⑥ Conclusion -->
+  <div style="border-radius:6px;border:1px solid #ddd6fe;overflow:hidden;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#faf5ff;border-left:3px solid #4c1d95">
+      <span style="font-size:12px">✅</span>
+      <span style="font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#4c1d95">Conclusion</span>
+    </div>
+    <div style="padding:8px 11px 10px">${igBullets(cn,"#4c1d95")}</div>
+  </div>
+
+  <!-- ⑦ 임상 적용 + 실무 활용 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div style="border-radius:6px;border:1px solid #bfdbfe;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#eff6ff;font-size:10.5px;font-weight:700;color:#1d4ed8;border-bottom:1px solid #dbeafe">🩺 임상 적용</div>
+      <div style="padding:8px 11px">${igBullets(cl,"#1d4ed8")}</div>
+    </div>
+    <div style="border-radius:6px;border:1px solid #fbcfe8;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#fdf2f8;font-size:10.5px;font-weight:700;color:#be185d;border-bottom:1px solid #fbcfe8">📋 실무 활용</div>
+      <div style="padding:8px 11px">${igBullets(mk,"#be185d")}</div>
+    </div>
+  </div>
+
+  <!-- ⑧ 푸터 -->
+  <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#94a3b8;font-family:'IBM Plex Mono',monospace;padding-top:8px;border-top:1px solid #e2e8f0;flex-wrap:wrap;margin-top:auto">
+    <span>PMID ${esc(p.pmid)}</span>
+    <span style="opacity:.4">·</span>
+    <span style="color:#7aa2d4">pubmed.ncbi.nlm.nih.gov/${esc(p.pmid)}</span>
+    <span style="margin-left:auto;opacity:.4;font-size:9.5px">Viatris PubMed Searcher</span>
+  </div>
+
+</div>
+
+<div class="ig-dl-bar">
+  <button class="ig-dl-btn" onclick="downloadInfog('${esc(p.pmid)}','${esc(slug)}')">
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style="flex-shrink:0">
+      <path d="M10 3v10M6 9l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    A4 PDF 내려받기
+  </button>
+  <span class="ig-dl-note">A4 · 고해상도 PDF</span>
+</div>
+
+</div>`;
+}
+
+async function downloadInfog(pmid, slug){
+  const el=document.getElementById(`infog-${pmid}`);
+  if(!el){alert("인포그래픽 요소를 찾을 수 없습니다.");return;}
+
+  const btn=event.currentTarget;
+  const origHTML=btn.innerHTML;
+  btn.innerHTML=`<span class="imp-spin" style="display:inline-block;border-top-color:#fff"></span>&nbsp;PDF 생성 중…`;
+  btn.disabled=true;
+
+  try{
+    /* 라이브러리 로드 */
+    if(!window.html2canvas){
+      await new Promise((res,rej)=>{
+        const s=document.createElement("script");
+        s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        s.onload=res;s.onerror=()=>rej(new Error("html2canvas 로드 실패"));
+        document.head.appendChild(s);
+      });
+    }
+    if(!window.jspdf){
+      await new Promise((res,rej)=>{
+        const s=document.createElement("script");
+        s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        s.onload=res;s.onerror=()=>rej(new Error("jsPDF 로드 실패"));
+        document.head.appendChild(s);
+      });
+    }
+
+    /* 인포그래픽 캡처 (3× 고해상도) */
+    const canvas=await html2canvas(el,{
+      scale:3,
+      useCORS:true,
+      backgroundColor:"#ffffff",
+      logging:false,
+      width:794,
+      height:el.scrollHeight,
+      windowWidth:900
+    });
+
+    /* A4 PDF 생성 (210×297mm) */
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const pageW=210, pageH=297, marginMm=10;
+    const usableW=pageW-marginMm*2;
+    const usableH=pageH-marginMm*2;
+
+    /* px → mm: 1px at 96dpi = 0.2646mm, scale=3이므로 1캡처px = 0.0882mm */
+    const pxToMm=0.2646/3;
+    const printW=usableW;
+    const printH=canvas.height*pxToMm*(usableW/(canvas.width*pxToMm));
+
+    const imgData=canvas.toDataURL("image/png",1.0);
+
+    if(printH<=usableH){
+      /* 단일 페이지 – 세로 중앙 배치 */
+      const topOffset=marginMm+(usableH-printH)/2;
+      pdf.addImage(imgData,"PNG",marginMm,topOffset,printW,printH);
+    } else {
+      /* 여러 페이지 분할 */
+      const mmPerPx=printH/canvas.height;
+      const pxPerPage=usableH/mmPerPx;
+      let srcY=0, pageIdx=0;
+      while(srcY<canvas.height){
+        if(pageIdx>0) pdf.addPage();
+        const sliceH=Math.min(pxPerPage, canvas.height-srcY);
+        const tc=document.createElement("canvas");
+        tc.width=canvas.width; tc.height=Math.ceil(sliceH);
+        tc.getContext("2d").drawImage(canvas,0,srcY,canvas.width,sliceH,0,0,canvas.width,sliceH);
+        const slicePrintH=sliceH*mmPerPx;
+        pdf.addImage(tc.toDataURL("image/png",1.0),"PNG",marginMm,marginMm,printW,slicePrintH);
+        srcY+=sliceH; pageIdx++;
+      }
+    }
+
+    pdf.save(`viatris_${slug}_PMID${pmid}.pdf`);
+
+  }catch(e){
+    alert("PDF 생성 실패: "+e.message);
+    console.error(e);
+  }finally{
+    btn.innerHTML=origHTML;
+    btn.disabled=false;
+  }
+}
+
+function toggleInfog(pmid){
+  const wrap=document.getElementById(`infog-wrap-${pmid}`);
+  const btn=document.getElementById(`infog-btn-${pmid}`);
+  if(!wrap||!btn) return;
+  const open=wrap.style.display==="block";
+  wrap.style.display=open?"none":"block";
+  btn.textContent=open?"📊 인포그래픽 보기":"✕ 인포그래픽 닫기";
+}
+
+function cardHTML(p,rank){
+  const t=ifTier(p.ifVal),ic=ifIcon(p.ifVal),lb=ifLbl(p.ifVal);
+  const impContent=p.imp?impHTML(p.imp):`<div class="imp-loading"><span class="imp-spin"></span>분석 중…</div>`;
+  return`<div class="acard" id="card-${esc(p.pmid)}">
+<div class="acard-head">
+  <div class="acard-meta">
+    <span class="rank-badge">${rank}</span>
+    <span class="if-badge ${t}">${ic}${lb}</span>
+    <span class="journal-chip">${esc(p.journal)}</span>
+    ${p.pubdate?`<span class="date-chip">${esc(p.pubdate)}</span>`:""}
+  </div>
+  <div class="acard-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>
+  ${p.authors?`<div class="acard-authors">${esc(p.authors)}</div>`:""}
+</div>
+<table class="abs-table">
+${["background","methods","results","conclusion"].map(k=>`<tr class="abs-tr">
+  <th class="abs-th">${k[0].toUpperCase()+k.slice(1)}</th>
+  <td class="abs-td">
+    ${p.en[k]?`<div class="lb"><span class="lp lp-en">EN</span><div class="lt">${esc(p.en[k])}</div></div>`:""}
+    ${p.ko[k]?`<div class="lb"><span class="lp lp-ko">KO</span><div class="lt">${esc(p.ko[k])}</div></div>`:""}
+  </td></tr>`).join("")}
+<tr class="abs-tr impl-tr">
+  <th class="abs-th">임상 시사점</th>
+  <td class="abs-td" id="imp-${esc(p.pmid)}">${impContent}</td>
+</tr>
+</table>
+<div class="acard-foot">
+  <span class="pmid-txt">PMID ${esc(p.pmid)}</span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="infog-btn" id="infog-btn-${esc(p.pmid)}" onclick="toggleInfog('${esc(p.pmid)}')">📊 인포그래픽 보기</button>
+    <a class="pm-link" href="${esc(p.url)}" target="_blank" rel="noopener">PubMed에서 보기 →</a>
+  </div>
+</div>
+<div id="infog-wrap-${esc(p.pmid)}" style="display:none;border-top:1px solid var(--line)">
+  ${buildInfographic(p)}
+</div>
+</div>`;
+}
+
+/* ── SEARCH ── */
+async function search(){
+  const btn=document.getElementById("searchBtn");
+  const content=document.getElementById("mainContent");
+  const cc=document.getElementById("countChip"),pt=document.getElementById("periodText"),tp=document.getElementById("tbPeriod");
+  const sl=document.getElementById("sortLbl"),qd=document.getElementById("qdisplay"),qb=document.getElementById("qbox");
+
+  if(!kws().length){setSt("키워드를 1개 이상 추가해 주세요.",true,false);return;}
+  btn.disabled=true;btn.innerHTML=`<svg class="btn-ico" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="white" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg> 검색 중…`;
+  content.innerHTML="";qd.classList.remove("on");qb.classList.remove("on");
+
+  try{
+    const from=document.getElementById("fromDate").value,to=document.getElementById("toDate").value;
+    const maxR=parseInt(document.getElementById("maxResults").value||"10");
+    const doSortIF=document.getElementById("sortByIF").checked;
+    const query=buildQuery();
+    pt.textContent=`${from} – ${to}`;tp.textContent=`${from} – ${to}`;
+    qd.innerHTML=`<strong>검색식</strong><br>${esc(query)}`;qd.classList.add("on");
+    qb.innerHTML=`<strong>검색식</strong><br>${esc(query)}`;qb.classList.add("on");
+    setSt("PubMed 검색 중…");
+
+    const su=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi");
+    su.searchParams.set("db","pubmed");su.searchParams.set("term",query);su.searchParams.set("retmax",String(maxR));
+    su.searchParams.set("retmode","json");su.searchParams.set("sort","pub date");su.searchParams.set("email",NCBI_EMAIL);
+    const sd=await fj(su.toString());
+    const ids=(sd.esearchresult&&sd.esearchresult.idlist)||[];
+
+    if(!ids.length){
+      cc.textContent="Articles 0";setSt("결과 없음",false,false);
+      content.innerHTML=`<div class="empty"><p>검색 결과가 없습니다.<br>키워드·기간·제외 조건을 조정해 주세요.</p></div>`;
+      return;
+    }
+
+    const smu=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi");
+    smu.searchParams.set("db","pubmed");smu.searchParams.set("id",ids.join(","));
+    smu.searchParams.set("retmode","json");smu.searchParams.set("email",NCBI_EMAIL);
+    const smData=await fj(smu.toString());const res=smData.result||{};
+    const papers=[];
+
+    for(const pid of ids){
+      const item=res[pid];if(!item) continue;
+      setSt(`논문 처리 중… ${papers.length+1} / ${ids.length}`);
+      const au=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
+      au.searchParams.set("db","pubmed");au.searchParams.set("id",pid);au.searchParams.set("rettype","abstract");
+      au.searchParams.set("retmode","text");au.searchParams.set("email",NCBI_EMAIL);
+      const raw=await ft2(au.toString());
+      const clean=stripToAbs(raw);const en=parseSec(clean);
+      const ko={background:await toKo(en.background),methods:await toKo(en.methods),results:await toKo(en.results),conclusion:await toKo(en.conclusion)};
+      const journal=item.fulljournalname||"";
+      papers.push({pmid:pid,title:item.title||"",journal,pubdate:item.pubdate||"",
+        authors:(item.authors||[]).map(a=>a.name).filter(Boolean).slice(0,5).join(", "),
+        url:`https://pubmed.ncbi.nlm.nih.gov/${pid}/`,en,ko,imp:null,ifVal:getIF(journal)});
+    }
+
+    if(doSortIF){
+      papers.sort((a,b)=>{if(a.ifVal===null&&b.ifVal===null)return 0;if(a.ifVal===null)return 1;if(b.ifVal===null)return -1;return b.ifVal-a.ifVal;});
+      sl.textContent="IF 높은 순 정렬";sl.style.display="inline-block";
+    } else {
+      sl.textContent="최신 날짜 순";sl.style.display="inline-block";
+    }
+
+    cc.textContent=`Articles ${papers.length}`;
+    // 카드 먼저 렌더링 (시사점은 로딩 스피너)
+    content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
+    setSt(`번역 완료 — AI 시사점 분석 중…`);
+
+    // AI 임상 시사점 비동기 순차 생성
+    for(const p of papers){
+      const cell=document.getElementById(`imp-${p.pmid}`);
+      if(!cell) continue;
+      const imp=await buildImplication(p.title,p.en);
+      p.imp=imp;
+      cell.innerHTML=impHTML(imp);
+      // 인포그래픽도 업데이트 (AI 분석 완료 후)
+      const igWrap=document.getElementById(`infog-wrap-${p.pmid}`);
+      if(igWrap) igWrap.innerHTML=buildInfographic(p);
+    }
+
+    setSt(`완료 — ${papers.length}편`,false,false);
+    setTimeout(clearSt,3000);
+
+  }catch(err){
+    setSt(`오류: ${err.message}`,true,false);
+    content.innerHTML=`<div class="empty"><p>오류가 발생했습니다.<br>${esc(err.message)}</p></div>`;
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML=`<svg class="btn-ico" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="white" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg> 검색 실행`;
+  }
+}
+
+function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
+
+document.getElementById("searchBtn").addEventListener("click",search);
+setDates();renderTags();renderPresets();updateCountBadges();
+</script>
+</body>
+</html>
