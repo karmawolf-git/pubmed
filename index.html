@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Viatris PubMed Searcher</title>
+<title>PubMed Searcher</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -301,7 +301,7 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,8
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sb-head">
-    <h1>Viatris PubMed Searcher</h1>
+    <h1>PubMed Searcher</h1>
     <p>키워드 조합 · 기간 · 필터 · IF 정렬</p>
   </div>
   <div class="sb-body">
@@ -373,25 +373,11 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,8
     <div>
       <div class="sec-lbl">AI 분석 엔진</div>
       <div class="prov-wrap" id="provWrap">
-        <label class="prov-opt selected" id="prov-groq">
-          <input type="radio" name="aiProvider" value="groq" checked/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">Groq <span class="prov-badge fast">⚡ 초고속</span></div>
-            <div class="prov-desc">Llama 3.1 · LPU 기반 · 기본값</div>
-          </div>
-        </label>
-        <label class="prov-opt" id="prov-gemini">
-          <input type="radio" name="aiProvider" value="gemini"/>
+        <label class="prov-opt selected" id="prov-gemini">
+          <input type="radio" name="aiProvider" value="gemini" checked/>
           <div style="flex:1;min-width:0">
             <div class="prov-name">Google Gemini Flash <span class="prov-badge fast">빠름</span></div>
-            <div class="prov-desc">Gemini 1.5 Flash · Groq 실패 시 대체</div>
-          </div>
-        </label>
-        <label class="prov-opt" id="prov-pollinations">
-          <input type="radio" name="aiProvider" value="pollinations"/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">Pollinations AI <span class="prov-badge slow">느림</span></div>
-            <div class="prov-desc">키 불필요 · 간헐적 실패 있음</div>
+            <div class="prov-desc">Gemini 1.5 Flash · Google AI</div>
           </div>
         </label>
       </div>
@@ -416,8 +402,8 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,8
 <!-- RIGHT PANEL -->
 <section class="rpanel">
   <div class="hero">
-    <div class="hero-eye">Viatris</div>
-    <div class="hero-title">Viatris PubMed Searcher</div>
+    <div class="hero-eye">Medical Research</div>
+    <div class="hero-title">PubMed Searcher</div>
     <div class="hero-sub" id="periodText">검색 전입니다</div>
   </div>
 
@@ -677,8 +663,7 @@ function parseSec(text){
   const ss=t.split(". ").map(s=>s.trim()).filter(Boolean);
   return{background:ss[0]?ss[0]+".":"",methods:ss[1]?ss[1]+".":"",results:ss.slice(2,4).join(". ")+".",conclusion:ss.slice(4,6).join(". ")+"."};
 }
-/* ── API KEYS ── */
-const GROQ_KEY="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";
+/* ── GEMINI KEY ── */
 const GEMINI_KEY="AIzaSyAPk1TS4RMkgmYQwtCQz_n0KSvOQsqUH2U";
 
 /* ── PARSE JSON ── */
@@ -733,27 +718,6 @@ Return EXACTLY this JSON (no other text):
   return{sys,usr};
 }
 
-/* ── GROQ ── */
-async function callGroq(title, en){
-  const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_KEY},
-    body:JSON.stringify({
-      model:"llama-3.3-70b-versatile",
-      max_tokens:1500,temperature:0.1,
-      response_format:{type:"json_object"},
-      messages:[{role:"system",content:sys},{role:"user",content:usr}]
-    })
-  });
-  if(!resp.ok){
-    const e=await resp.json().catch(()=>({}));
-    throw new Error("Groq "+(e?.error?.message||resp.status));
-  }
-  const d=await resp.json();
-  return parseJSON(d.choices?.[0]?.message?.content||"");
-}
-
 /* ── GEMINI ── */
 async function callGemini(title, en){
   const{sys,usr}=buildPrompt(title,en);
@@ -776,37 +740,16 @@ async function callGemini(title, en){
   return parseJSON(d.candidates?.[0]?.content?.parts?.[0]?.text||"");
 }
 
-/* ── POLLINATIONS ── */
-async function callPollinations(title, en){
-  const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch("https://text.pollinations.ai/",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"openai",jsonMode:true,
-      messages:[{role:"system",content:sys},{role:"user",content:usr}]})
-  });
-  if(!resp.ok) throw new Error("Pollinations "+resp.status);
-  return parseJSON(await resp.text());
-}
-
-/* ── ROUTER: 선택 제공업체 우선, 실패 시 자동 폴백 ── */
+/* ── AI 분석 ── */
 async function buildImplication(title, en){
-  const prov=document.querySelector("input[name=aiProvider]:checked")?.value||"groq";
-  const order=prov==="groq"?["groq","gemini","pollinations"]
-    :prov==="gemini"?["gemini","groq","pollinations"]
-    :["pollinations","groq","gemini"];
-  for(const p of order){
-    try{
-      setSt(`AI 분석 중… (${p})`);
-      if(p==="groq") return await callGroq(title,en);
-      if(p==="gemini") return await callGemini(title,en);
-      return await callPollinations(title,en);
-    }catch(e){
-      console.warn(`[${p}] 실패 → 다음 시도:`,e.message);
-    }
+  try{
+    setSt("AI 분석 중… (Gemini)");
+    return await callGemini(title,en);
+  }catch(e){
+    console.error("Gemini 실패:",e.message);
+    return{headline:"AI 분석 실패: "+e.message,background:[],methods:[],results:[],conclusion:[],
+      key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
   }
-  return{headline:"모든 AI 서비스 실패",background:[],methods:[],results:[],conclusion:[],
-    key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
 }
 
 
@@ -1031,7 +974,7 @@ function buildInfographic(p){
     <span>PMID ${esc(p.pmid)}</span>
     <span style="opacity:.4">·</span>
     <span style="color:#7aa2d4">pubmed.ncbi.nlm.nih.gov/${esc(p.pmid)}</span>
-    <span style="margin-left:auto;opacity:.4;font-size:9.5px">Viatris PubMed Searcher</span>
+    <span style="margin-left:auto;opacity:.4;font-size:9.5px">PubMed Searcher</span>
   </div>
 
 </div>
@@ -1280,3 +1223,4 @@ setDates();renderTags();renderPresets();updateCountBadges();
 </script>
 </body>
 </html>
+
