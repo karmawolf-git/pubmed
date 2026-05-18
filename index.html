@@ -663,6 +663,50 @@ function parseSec(text){
   const ss=t.split(". ").map(s=>s.trim()).filter(Boolean);
   return{background:ss[0]?ss[0]+".":"",methods:ss[1]?ss[1]+".":"",results:ss.slice(2,4).join(". ")+".",conclusion:ss.slice(4,6).join(". ")+"."};
 }
+/* ── RETRY HELPER ── */
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function withRetry(fn,retries=3,baseMs=1200){
+  for(let i=0;i<retries;i++){
+    try{return await fn();}catch(e){
+      if(i===retries-1) throw e;
+      await sleep(baseMs*(i+1));
+    }
+  }
+}
+
+/* ── BATCH ABSTRACT FETCH (XML, 1 call for all papers) ── */
+async function fetchAbstractsBatch(ids){
+  const url=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
+  url.searchParams.set("db","pubmed");url.searchParams.set("id",ids.join(","));
+  url.searchParams.set("rettype","abstract");url.searchParams.set("retmode","xml");
+  url.searchParams.set("email",NCBI_EMAIL);
+  const xml=await ft2(url.toString());
+  const doc=new DOMParser().parseFromString(xml,"application/xml");
+  if(doc.querySelector("parsererror")) return {};
+  const out={};
+  doc.querySelectorAll("PubmedArticle,PubmedBookArticle").forEach(art=>{
+    const pmid=art.querySelector("PMID")?.textContent?.trim();
+    if(!pmid) return;
+    const get=(...lbls)=>{
+      for(const l of lbls){
+        const el=art.querySelector(`AbstractText[Label="${l}"]`);
+        if(el?.textContent?.trim()) return el.textContent.trim();
+      }
+      return "";
+    };
+    let bg=get("BACKGROUND","OBJECTIVE","OBJECTIVES","AIM","AIMS","PURPOSE","INTRODUCTION");
+    let mt=get("METHODS","METHOD","DESIGN","PATIENTS AND METHODS","MATERIALS AND METHODS");
+    let rs=get("RESULTS","FINDINGS","RESULT");
+    let cn=get("CONCLUSIONS","CONCLUSION","INTERPRETATION","SUMMARY");
+    if(!bg&&!mt&&!rs&&!cn){
+      const full=Array.from(art.querySelectorAll("AbstractText")).map(el=>el.textContent).join(" ").trim();
+      const p=parseSec(full);bg=p.background;mt=p.methods;rs=p.results;cn=p.conclusion;
+    }
+    out[pmid]={background:bg,methods:mt,results:rs,conclusion:cn};
+  });
+  return out;
+}
+
 /* ── API KEYS ── */
 const GROQ_KEY="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";
 const GEMINI_KEY="AIzaSyAPk1TS4RMkgmYQwtCQz_n0KSvOQsqUH2U";
@@ -1191,8 +1235,8 @@ async function search(){
 
     const su=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi");
     su.searchParams.set("db","pubmed");su.searchParams.set("term",query);su.searchParams.set("retmax",String(maxR));
-    su.searchParams.set("retmode","json");su.searchParams.set("sort","pub date");su.searchParams.set("email",NCBI_EMAIL);
-    const sd=await fj(su.toString());
+    su.searchParams.set("retmode","json");su.searchParams.set("sort","pub_date");su.searchParams.set("email",NCBI_EMAIL);
+    const sd=await withRetry(()=>fj(su.toString()));
     const ids=(sd.esearchresult&&sd.esearchresult.idlist)||[];
 
     if(!ids.length){
@@ -1204,17 +1248,17 @@ async function search(){
     const smu=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi");
     smu.searchParams.set("db","pubmed");smu.searchParams.set("id",ids.join(","));
     smu.searchParams.set("retmode","json");smu.searchParams.set("email",NCBI_EMAIL);
-    const smData=await fj(smu.toString());const res=smData.result||{};
+    const smData=await withRetry(()=>fj(smu.toString()));const res=smData.result||{};
     const papers=[];
+
+    // 초록 전체를 XML 1번 호출로 일괄 수집 (논문 N개 → API 1번)
+    setSt("초록 일괄 로드 중…");
+    const abstracts=await withRetry(()=>fetchAbstractsBatch(ids));
 
     for(const pid of ids){
       const item=res[pid];if(!item) continue;
-      setSt(`논문 처리 중… ${papers.length+1} / ${ids.length}`);
-      const au=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
-      au.searchParams.set("db","pubmed");au.searchParams.set("id",pid);au.searchParams.set("rettype","abstract");
-      au.searchParams.set("retmode","text");au.searchParams.set("email",NCBI_EMAIL);
-      const raw=await ft2(au.toString());
-      const clean=stripToAbs(raw);const en=parseSec(clean);
+      setSt(`번역 중… ${papers.length+1} / ${ids.length}`);
+      const en=abstracts[pid]||{background:"",methods:"",results:"",conclusion:""};
       const ko={background:await toKo(en.background),methods:await toKo(en.methods),results:await toKo(en.results),conclusion:await toKo(en.conclusion)};
       const journal=item.fulljournalname||"";
       papers.push({pmid:pid,title:item.title||"",journal,pubdate:item.pubdate||"",
@@ -1234,16 +1278,20 @@ async function search(){
     content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
-    // AI 임상 시사점 비동기 순차 생성
+    // AI 임상 시사점 — 논문별 오류 격리 (한 편 실패해도 나머지 계속)
     for(const p of papers){
       const cell=document.getElementById(`imp-${p.pmid}`);
       if(!cell) continue;
-      const imp=await buildImplication(p.title,p.en);
-      p.imp=imp;
-      cell.innerHTML=impHTML(imp);
-      // 인포그래픽도 업데이트 (AI 분석 완료 후)
-      const igWrap=document.getElementById(`infog-wrap-${p.pmid}`);
-      if(igWrap) igWrap.innerHTML=buildInfographic(p);
+      try{
+        const imp=await buildImplication(p.title,p.en);
+        p.imp=imp;
+        cell.innerHTML=impHTML(imp);
+        const igWrap=document.getElementById(`infog-wrap-${p.pmid}`);
+        if(igWrap) igWrap.innerHTML=buildInfographic(p);
+      }catch(e){
+        console.error(`AI 분석 실패 PMID ${p.pmid}:`,e.message);
+        cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
+      }
     }
 
     setSt(`완료 — ${papers.length}편`,false,false);
