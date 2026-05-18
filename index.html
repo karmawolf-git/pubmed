@@ -376,10 +376,37 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,8
         <label class="prov-opt selected" id="prov-gemini">
           <input type="radio" name="aiProvider" value="gemini" checked/>
           <div style="flex:1;min-width:0">
-            <div class="prov-name">Google Gemini Flash <span class="prov-badge fast">빠름</span></div>
-            <div class="prov-desc">Gemini 1.5 Flash · Google AI</div>
+            <div class="prov-name">Google Gemini Flash <span class="prov-badge fast">빠름</span><span class="prov-badge free">무료</span></div>
+            <div class="prov-desc">Gemini 2.0 Flash · Google AI Studio 키 필요</div>
           </div>
         </label>
+        <label class="prov-opt" id="prov-groq">
+          <input type="radio" name="aiProvider" value="groq"/>
+          <div style="flex:1;min-width:0">
+            <div class="prov-name">Groq <span class="prov-badge fast">⚡ 초고속</span></div>
+            <div class="prov-desc">Llama 3.3 70B · Groq Console 키 필요</div>
+          </div>
+        </label>
+        <label class="prov-opt" id="prov-pollinations">
+          <input type="radio" name="aiProvider" value="pollinations"/>
+          <div style="flex:1;min-width:0">
+            <div class="prov-name">Pollinations AI <span class="prov-badge free">키 불필요</span></div>
+            <div class="prov-desc">무료 · 속도 보통 · 폴백 자동 사용</div>
+          </div>
+        </label>
+      </div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:7px" id="keyFields">
+        <div id="key-gemini-wrap">
+          <label class="fld-lbl" for="keyGemini">Gemini API Key</label>
+          <input type="password" id="keyGemini" placeholder="AIzaSy…" autocomplete="off"/>
+        </div>
+        <div id="key-groq-wrap" style="display:none">
+          <label class="fld-lbl" for="keyGroq">Groq API Key</label>
+          <input type="password" id="keyGroq" placeholder="gsk_…" autocomplete="off"/>
+        </div>
+        <div style="font-size:10.5px;color:var(--slate-lt);line-height:1.6">
+          키는 브라우저 내에만 저장되며 외부로 전송되지 않습니다.
+        </div>
       </div>
     </div>
 
@@ -613,6 +640,9 @@ document.querySelectorAll("input[name=aiProvider]").forEach(radio=>{
     document.querySelectorAll(".prov-opt").forEach(opt=>{
       opt.classList.toggle("selected",opt.id===`prov-${radio.value}`);
     });
+    const v=radio.value;
+    document.getElementById("key-gemini-wrap").style.display=v==="gemini"?"block":"none";
+    document.getElementById("key-groq-wrap").style.display=v==="groq"?"block":"none";
   });
 });
 
@@ -707,9 +737,20 @@ async function fetchAbstractsBatch(ids){
   return out;
 }
 
-/* ── API KEYS ── */
-const GROQ_KEY="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";
-const GEMINI_KEY="AIzaSyAPk1TS4RMkgmYQwtCQz_n0KSvOQsqUH2U";
+/* ── API KEYS (런타임 입력, localStorage 캐시) ── */
+function getKey(id){
+  const el=document.getElementById(id);
+  const v=el?el.value.trim():"";
+  if(v){localStorage.setItem(id,v);return v;}
+  return localStorage.getItem(id)||"";
+}
+function loadSavedKeys(){
+  ["keyGemini","keyGroq"].forEach(id=>{
+    const el=document.getElementById(id);
+    const saved=localStorage.getItem(id);
+    if(el&&saved) el.value=saved;
+  });
+}
 
 /* ── PARSE JSON ── */
 function parseJSON(raw){
@@ -765,10 +806,12 @@ Return EXACTLY this JSON (no other text):
 
 /* ── GROQ ── */
 async function callGroq(title, en){
+  const key=getKey("keyGroq");
+  if(!key) throw new Error("Groq 키 없음");
   const{sys,usr}=buildPrompt(title,en);
   const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_KEY},
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
     body:JSON.stringify({
       model:"llama-3.3-70b-versatile",
       max_tokens:1500,temperature:0.1,
@@ -786,9 +829,11 @@ async function callGroq(title, en){
 
 /* ── GEMINI ── */
 async function callGemini(title, en){
+  const key=getKey("keyGemini");
+  if(!key) throw new Error("Gemini 키 없음");
   const{sys,usr}=buildPrompt(title,en);
   const resp=await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
     {
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -819,13 +864,20 @@ async function callPollinations(title, en){
   return parseJSON(await resp.text());
 }
 
-/* ── AI 분석 (Gemini → Groq → Pollinations 순서로 폴백) ── */
+/* ── AI 분석 (선택 엔진 우선, 실패 시 Pollinations 폴백) ── */
 async function buildImplication(title, en){
-  const providers=[
-    {name:"Gemini", fn:()=>callGemini(title,en)},
-    {name:"Groq",   fn:()=>callGroq(title,en)},
-    {name:"Pollinations", fn:()=>callPollinations(title,en)}
+  const sel=document.querySelector("input[name=aiProvider]:checked")?.value||"gemini";
+  const all=[
+    {name:"Gemini", key:"gemini", fn:()=>callGemini(title,en)},
+    {name:"Groq",   key:"groq",   fn:()=>callGroq(title,en)},
+    {name:"Pollinations", key:"pollinations", fn:()=>callPollinations(title,en)}
   ];
+  // 선택 엔진 맨 앞, Pollinations는 항상 마지막 폴백
+  const providers=[
+    ...all.filter(p=>p.key===sel),
+    ...all.filter(p=>p.key!==sel&&p.key!=="pollinations"),
+    all.find(p=>p.key==="pollinations")
+  ].filter(Boolean);
   for(const p of providers){
     try{
       setSt(`AI 분석 중… (${p.name})`);
@@ -1309,7 +1361,7 @@ async function search(){
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
 
 document.getElementById("searchBtn").addEventListener("click",search);
-setDates();renderTags();renderPresets();updateCountBadges();
+setDates();renderTags();renderPresets();updateCountBadges();loadSavedKeys();
 </script>
 </body>
 </html>
