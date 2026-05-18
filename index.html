@@ -663,7 +663,8 @@ function parseSec(text){
   const ss=t.split(". ").map(s=>s.trim()).filter(Boolean);
   return{background:ss[0]?ss[0]+".":"",methods:ss[1]?ss[1]+".":"",results:ss.slice(2,4).join(". ")+".",conclusion:ss.slice(4,6).join(". ")+"."};
 }
-/* ── GEMINI KEY ── */
+/* ── API KEYS ── */
+const GROQ_KEY="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";
 const GEMINI_KEY="AIzaSyAPk1TS4RMkgmYQwtCQz_n0KSvOQsqUH2U";
 
 /* ── PARSE JSON ── */
@@ -718,11 +719,32 @@ Return EXACTLY this JSON (no other text):
   return{sys,usr};
 }
 
+/* ── GROQ ── */
+async function callGroq(title, en){
+  const{sys,usr}=buildPrompt(title,en);
+  const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+GROQ_KEY},
+    body:JSON.stringify({
+      model:"llama-3.3-70b-versatile",
+      max_tokens:1500,temperature:0.1,
+      response_format:{type:"json_object"},
+      messages:[{role:"system",content:sys},{role:"user",content:usr}]
+    })
+  });
+  if(!resp.ok){
+    const e=await resp.json().catch(()=>({}));
+    throw new Error("Groq "+(e?.error?.message||resp.status));
+  }
+  const d=await resp.json();
+  return parseJSON(d.choices?.[0]?.message?.content||"");
+}
+
 /* ── GEMINI ── */
 async function callGemini(title, en){
   const{sys,usr}=buildPrompt(title,en);
   const resp=await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_KEY}`,
     {
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -740,16 +762,36 @@ async function callGemini(title, en){
   return parseJSON(d.candidates?.[0]?.content?.parts?.[0]?.text||"");
 }
 
-/* ── AI 분석 ── */
+/* ── POLLINATIONS ── */
+async function callPollinations(title, en){
+  const{sys,usr}=buildPrompt(title,en);
+  const resp=await fetch("https://text.pollinations.ai/",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"openai",jsonMode:true,
+      messages:[{role:"system",content:sys},{role:"user",content:usr}]})
+  });
+  if(!resp.ok) throw new Error("Pollinations "+resp.status);
+  return parseJSON(await resp.text());
+}
+
+/* ── AI 분석 (Gemini → Groq → Pollinations 순서로 폴백) ── */
 async function buildImplication(title, en){
-  try{
-    setSt("AI 분석 중… (Gemini)");
-    return await callGemini(title,en);
-  }catch(e){
-    console.error("Gemini 실패:",e.message);
-    return{headline:"AI 분석 실패: "+e.message,background:[],methods:[],results:[],conclusion:[],
-      key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
+  const providers=[
+    {name:"Gemini", fn:()=>callGemini(title,en)},
+    {name:"Groq",   fn:()=>callGroq(title,en)},
+    {name:"Pollinations", fn:()=>callPollinations(title,en)}
+  ];
+  for(const p of providers){
+    try{
+      setSt(`AI 분석 중… (${p.name})`);
+      return await p.fn();
+    }catch(e){
+      console.warn(`[${p.name}] 실패 → 다음 시도:`,e.message);
+    }
   }
+  return{headline:"모든 AI 서비스 실패",background:[],methods:[],results:[],conclusion:[],
+    key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
 }
 
 
