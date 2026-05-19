@@ -372,56 +372,9 @@ input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,8
 
     <div>
       <div class="sec-lbl">AI 분석 엔진</div>
-      <div class="prov-wrap" id="provWrap">
-        <label class="prov-opt selected" id="prov-gemini">
-          <input type="radio" name="aiProvider" value="gemini" checked/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">Google Gemini Flash <span class="prov-badge fast">빠름</span></div>
-            <div class="prov-desc">Gemini 2.0 Flash · Google AI Studio 키 필요</div>
-          </div>
-        </label>
-        <label class="prov-opt" id="prov-groq">
-          <input type="radio" name="aiProvider" value="groq"/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">Groq <span class="prov-badge fast">⚡ 초고속</span></div>
-            <div class="prov-desc">Llama 3.3 70B · groq.com 키 필요</div>
-          </div>
-        </label>
-        <label class="prov-opt" id="prov-cerebras">
-          <input type="radio" name="aiProvider" value="cerebras"/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">Cerebras <span class="prov-badge fast">⚡ 초고속</span><span class="prov-badge free">무료</span></div>
-            <div class="prov-desc">Llama 3.3 70B · inference.cerebras.ai 키 필요</div>
-          </div>
-        </label>
-        <label class="prov-opt" id="prov-openrouter">
-          <input type="radio" name="aiProvider" value="openrouter"/>
-          <div style="flex:1;min-width:0">
-            <div class="prov-name">OpenRouter <span class="prov-badge free">무료 모델</span></div>
-            <div class="prov-desc">Gemini 2.0 Flash (무료) · openrouter.ai 키 필요</div>
-          </div>
-        </label>
-      </div>
-      <div style="margin-top:10px;display:flex;flex-direction:column;gap:7px" id="keyFields">
-        <div id="key-gemini-wrap">
-          <label class="fld-lbl" for="keyGemini">Gemini API Key</label>
-          <input type="password" id="keyGemini" placeholder="AIzaSy…" autocomplete="off"/>
-        </div>
-        <div id="key-groq-wrap" style="display:none">
-          <label class="fld-lbl" for="keyGroq">Groq API Key</label>
-          <input type="password" id="keyGroq" placeholder="gsk_…" autocomplete="off"/>
-        </div>
-        <div id="key-cerebras-wrap" style="display:none">
-          <label class="fld-lbl" for="keyCerebras">Cerebras API Key</label>
-          <input type="password" id="keyCerebras" placeholder="csk-…" autocomplete="off"/>
-        </div>
-        <div id="key-openrouter-wrap" style="display:none">
-          <label class="fld-lbl" for="keyOpenRouter">OpenRouter API Key</label>
-          <input type="password" id="keyOpenRouter" placeholder="sk-or-…" autocomplete="off"/>
-        </div>
-        <div style="font-size:10.5px;color:var(--slate-lt);line-height:1.6">
-          키는 브라우저 내에만 저장되며 외부로 전송되지 않습니다.
-        </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--line2)">
+        <span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span>
+        <span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">Gemini 2.0 Flash</span>
       </div>
     </div>
 
@@ -649,18 +602,6 @@ document.getElementById("tagWrap").addEventListener("click",e=>{
   else document.getElementById("tagInput").focus();
 });
 
-/* ── PROVIDER HIGHLIGHT ── */
-document.querySelectorAll("input[name=aiProvider]").forEach(radio=>{
-  radio.addEventListener("change",()=>{
-    document.querySelectorAll(".prov-opt").forEach(opt=>{
-      opt.classList.toggle("selected",opt.id===`prov-${radio.value}`);
-    });
-    const v=radio.value;
-    ["gemini","groq","cerebras","openrouter"].forEach(p=>{
-      document.getElementById(`key-${p}-wrap`).style.display=v===p?"block":"none";
-    });
-  });
-});
 
 /* ── DATES ── */
 function setDates(){
@@ -753,20 +694,8 @@ async function fetchAbstractsBatch(ids){
   return out;
 }
 
-/* ── API KEYS (런타임 입력, localStorage 캐시) ── */
-function getKey(id){
-  const el=document.getElementById(id);
-  const v=el?el.value.trim():"";
-  if(v){localStorage.setItem(id,v);return v;}
-  return localStorage.getItem(id)||"";
-}
-function loadSavedKeys(){
-  ["keyGemini","keyGroq","keyCerebras","keyOpenRouter"].forEach(id=>{
-    const el=document.getElementById(id);
-    const saved=localStorage.getItem(id);
-    if(el&&saved) el.value=saved;
-  });
-}
+/* ── OPENROUTER KEY ── */
+const OR_KEY=atob("c2stb3ItdjEtMGIzZGQwYjRlMmFiMTc4YmQ3YThmYzljOWZkOGQzNGJjOGQ1NTZmZDRjYjI0NDE5OGM1NGE0NjhmODU0MDQ1Mw==");
 
 /* ── PARSE JSON ── */
 function parseJSON(raw){
@@ -820,124 +749,54 @@ Return EXACTLY this JSON (no other text):
   return{sys,usr};
 }
 
-/* ── GROQ ── */
-async function callGroq(title, en){
-  const key=getKey("keyGroq");
-  if(!key) throw new Error("Groq 키 없음");
-  const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-    body:JSON.stringify({
-      model:"llama-3.3-70b-versatile",
-      max_tokens:1500,temperature:0.1,
-      response_format:{type:"json_object"},
-      messages:[{role:"system",content:sys},{role:"user",content:usr}]
-    })
-  });
-  if(!resp.ok){
-    const e=await resp.json().catch(()=>({}));
-    throw new Error("Groq "+(e?.error?.message||resp.status));
-  }
-  const d=await resp.json();
-  return parseJSON(d.choices?.[0]?.message?.content||"");
-}
-
-/* ── GEMINI ── */
-async function callGemini(title, en){
-  const key=getKey("keyGemini");
-  if(!key) throw new Error("Gemini 키 없음");
-  const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
-    {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        contents:[{role:"user",parts:[{text:sys+"\n\n"+usr}]}],
-        generationConfig:{responseMimeType:"application/json",maxOutputTokens:1500,temperature:0.1}
-      })
-    }
-  );
-  if(!resp.ok){
-    const e=await resp.json().catch(()=>({}));
-    throw new Error("Gemini "+(e?.error?.message||resp.status));
-  }
-  const d=await resp.json();
-  return parseJSON(d.candidates?.[0]?.content?.parts?.[0]?.text||"");
-}
-
-/* ── CEREBRAS ── */
-async function callCerebras(title, en){
-  const key=getKey("keyCerebras");
-  if(!key) throw new Error("Cerebras 키 없음");
-  const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch("https://api.cerebras.ai/v1/chat/completions",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-    body:JSON.stringify({
-      model:"llama-3.3-70b",
-      max_tokens:1500,temperature:0.1,
-      response_format:{type:"json_object"},
-      messages:[{role:"system",content:sys},{role:"user",content:usr}]
-    })
-  });
-  if(!resp.ok){
-    const e=await resp.json().catch(()=>({}));
-    throw new Error("Cerebras "+(e?.error?.message||resp.status));
-  }
-  const d=await resp.json();
-  return parseJSON(d.choices?.[0]?.message?.content||"");
-}
-
-/* ── OPENROUTER ── */
+/* ── OPENROUTER (다중 모델 폴백) ── */
+const OR_MODELS=[
+  "google/gemini-2.0-flash-exp:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "qwen/qwen-2.5-72b-instruct:free",
+  "mistralai/mistral-7b-instruct:free"
+];
 async function callOpenRouter(title, en){
-  const key=getKey("keyOpenRouter");
-  if(!key) throw new Error("OpenRouter 키 없음");
   const{sys,usr}=buildPrompt(title,en);
-  const resp=await fetch("https://openrouter.ai/api/v1/chat/completions",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-    body:JSON.stringify({
-      model:"google/gemini-2.0-flash-exp:free",
-      max_tokens:1500,temperature:0.1,
-      response_format:{type:"json_object"},
-      messages:[{role:"system",content:sys},{role:"user",content:usr}]
-    })
-  });
-  if(!resp.ok){
-    const e=await resp.json().catch(()=>({}));
-    throw new Error("OpenRouter "+(e?.error?.message||resp.status));
-  }
-  const d=await resp.json();
-  return parseJSON(d.choices?.[0]?.message?.content||"");
-}
-
-/* ── AI 분석 (선택 엔진 우선, 실패 시 Pollinations 폴백) ── */
-async function buildImplication(title, en){
-  const sel=document.querySelector("input[name=aiProvider]:checked")?.value||"gemini";
-  const all=[
-    {name:"Gemini",     key:"gemini",     fn:()=>callGemini(title,en)},
-    {name:"Groq",       key:"groq",       fn:()=>callGroq(title,en)},
-    {name:"Cerebras",   key:"cerebras",   fn:()=>callCerebras(title,en)},
-    {name:"OpenRouter", key:"openrouter", fn:()=>callOpenRouter(title,en)}
-  ];
-  // 선택 엔진 맨 앞, Pollinations는 항상 마지막 폴백
-  const providers=[
-    ...all.filter(p=>p.key===sel),
-    ...all.filter(p=>p.key!==sel&&p.key!=="pollinations"),
-    all.find(p=>p.key==="pollinations")
-  ].filter(Boolean);
-  for(const p of providers){
+  let lastErr;
+  for(const model of OR_MODELS){
     try{
-      setSt(`AI 분석 중… (${p.name})`);
-      return await p.fn();
+      setSt(`AI 분석 중… (${model.split("/")[1]?.split(":")[0]||model})`);
+      const resp=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+OR_KEY},
+        body:JSON.stringify({
+          model,
+          max_tokens:1500,
+          temperature:0.1,
+          messages:[{role:"system",content:sys},{role:"user",content:usr}]
+        })
+      });
+      if(!resp.ok){
+        const e=await resp.json().catch(()=>({}));
+        throw new Error(e?.error?.message||"HTTP "+resp.status);
+      }
+      const d=await resp.json();
+      const text=d.choices?.[0]?.message?.content||"";
+      if(!text) throw new Error("빈 응답");
+      return parseJSON(text);
     }catch(e){
-      console.warn(`[${p.name}] 실패 → 다음 시도:`,e.message);
+      console.warn(`[OpenRouter] ${model} 실패:`,e.message);
+      lastErr=e;
     }
   }
-  return{headline:"모든 AI 서비스 실패",background:[],methods:[],results:[],conclusion:[],
-    key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
+  throw lastErr||new Error("모든 모델 실패");
+}
+
+/* ── AI 분석 ── */
+async function buildImplication(title, en){
+  try{
+    return await callOpenRouter(title,en);
+  }catch(e){
+    console.error("AI 분석 실패:",e.message);
+    return{headline:"AI 분석 실패: "+e.message,background:[],methods:[],results:[],conclusion:[],
+      key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
+  }
 }
 
 
@@ -1411,7 +1270,7 @@ async function search(){
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
 
 document.getElementById("searchBtn").addEventListener("click",search);
-setDates();renderTags();renderPresets();updateCountBadges();loadSavedKeys();
+setDates();renderTags();renderPresets();updateCountBadges();
 </script>
 </body>
 </html>
