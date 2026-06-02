@@ -810,6 +810,7 @@ async function callOpenRouter(title, en){
     }catch(e){
       console.warn(`[OR] ${model}:`,e.message);
       lastErr=e;
+      await sleep(800);
     }
   }
   throw lastErr||new Error("모든 모델 실패");
@@ -1274,9 +1275,11 @@ async function search(){
     content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
-    // AI 임상 시사점 — 최대 3편 병렬 분석, 논문별 오류 격리
-    const lim3=pLimit(3);
-    await Promise.all(papers.map(p=>lim3(async()=>{
+    // AI 임상 시사점 — 최대 2편 병렬 분석 + 요청 간 지연 (rate limit 회피), 논문별 오류 격리
+    const lim2=pLimit(2);
+    let aiIdx=0;
+    await Promise.all(papers.map(p=>lim2(async()=>{
+      await sleep(aiIdx++ * 500);
       const cell=document.getElementById(`imp-${p.pmid}`);
       if(!cell) return;
       try{
