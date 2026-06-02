@@ -661,6 +661,9 @@ async function withRetry(fn,retries=3,baseMs=1200){
   }
 }
 
+/* ── CONCURRENCY LIMITER ── */
+function pLimit(n){let a=0,q=[];const run=()=>{if(!q.length||a>=n)return;a++;const[fn,res,rej]=q.shift();fn().then(v=>{a--;res(v);run();},e=>{a--;rej(e);run();});};return fn=>new Promise((res,rej)=>{q.push([fn,res,rej]);run();});}
+
 /* ── BATCH ABSTRACT FETCH (XML, 1 call for all papers) ── */
 async function fetchAbstractsBatch(ids){
   const url=new URL("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi");
@@ -1236,20 +1239,28 @@ async function search(){
     const smData=await withRetry(()=>fj(smu.toString()));const res=smData.result||{};
     const papers=[];
 
-    // 초록 전체를 XML 1번 호출로 일괄 수집 (논문 N개 → API 1번)
+    // 초록 전체를 XML 1번 호출로 일괄 수집 + 모델 목록 병렬 프리페치
     setSt("초록 일괄 로드 중…");
-    const abstracts=await withRetry(()=>fetchAbstractsBatch(ids));
+    const [abstracts]=await Promise.all([
+      withRetry(()=>fetchAbstractsBatch(ids)),
+      fetchFreeModels()
+    ]);
 
-    for(const pid of ids){
-      const item=res[pid];if(!item) continue;
-      setSt(`번역 중… ${papers.length+1} / ${ids.length}`);
+    // 번역 병렬 처리: 논문당 4 필드 동시 번역, 최대 5편 병렬 (Google Translate 과부하 방지)
+    setSt(`번역 중… (${ids.length}편 병렬 처리)`);
+    const lim5=pLimit(5);
+    const paperSlots=new Array(ids.length).fill(null);
+    await Promise.all(ids.map((pid,i)=>lim5(async()=>{
+      const item=res[pid];if(!item) return;
       const en=abstracts[pid]||{background:"",methods:"",results:"",conclusion:""};
-      const ko={background:await toKo(en.background),methods:await toKo(en.methods),results:await toKo(en.results),conclusion:await toKo(en.conclusion)};
+      const[bg,mt,rs,cn]=await Promise.all([toKo(en.background),toKo(en.methods),toKo(en.results),toKo(en.conclusion)]);
+      const ko={background:bg,methods:mt,results:rs,conclusion:cn};
       const journal=item.fulljournalname||"";
-      papers.push({pmid:pid,title:item.title||"",journal,pubdate:item.pubdate||"",
+      paperSlots[i]={pmid:pid,title:item.title||"",journal,pubdate:item.pubdate||"",
         authors:(item.authors||[]).map(a=>a.name).filter(Boolean).slice(0,5).join(", "),
-        url:`https://pubmed.ncbi.nlm.nih.gov/${pid}/`,en,ko,imp:null,ifVal:getIF(journal)});
-    }
+        url:`https://pubmed.ncbi.nlm.nih.gov/${pid}/`,en,ko,imp:null,ifVal:getIF(journal)};
+    })));
+    papers.push(...paperSlots.filter(Boolean));
 
     if(doSortIF){
       papers.sort((a,b)=>{if(a.ifVal===null&&b.ifVal===null)return 0;if(a.ifVal===null)return 1;if(b.ifVal===null)return -1;return b.ifVal-a.ifVal;});
@@ -1263,10 +1274,11 @@ async function search(){
     content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
-    // AI 임상 시사점 — 논문별 오류 격리 (한 편 실패해도 나머지 계속)
-    for(const p of papers){
+    // AI 임상 시사점 — 최대 3편 병렬 분석, 논문별 오류 격리
+    const lim3=pLimit(3);
+    await Promise.all(papers.map(p=>lim3(async()=>{
       const cell=document.getElementById(`imp-${p.pmid}`);
-      if(!cell) continue;
+      if(!cell) return;
       try{
         const imp=await buildImplication(p.title,p.en);
         p.imp=imp;
@@ -1277,7 +1289,7 @@ async function search(){
         console.error(`AI 분석 실패 PMID ${p.pmid}:`,e.message);
         cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
       }
-    }
+    })));
 
     setSt(`완료 — ${papers.length}편`,false,false);
     setTimeout(clearSt,3000);
