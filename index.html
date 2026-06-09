@@ -402,11 +402,11 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div class="sec-lbl">AI 분석 엔진</div>
       <div id="aiEngineStatus" style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--line2);margin-bottom:8px">
         <span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span>
-        <span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드</span>
+        <span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드 (폴백)</span>
       </div>
-      <label class="fld-lbl" for="groqKeyInput">⚡ Groq API Key <span style="color:var(--accent);font-weight:400">(선택 — 10배 빠름)</span></label>
-      <input type="password" id="groqKeyInput" placeholder="gsk_…  (console.groq.com 무료 발급)" style="font-size:12px"/>
-      <div style="margin-top:5px;font-size:10.5px;color:var(--text3);line-height:1.6">키 입력 시 자동 저장 · Groq llama-3.1-8b-instant 사용</div>
+      <label class="fld-lbl" for="geminiKeyInput">✨ Gemini API Key <span style="color:var(--accent);font-weight:400">(aistudio.google.com 무료 발급)</span></label>
+      <input type="password" id="geminiKeyInput" placeholder="AIza…" style="font-size:12px"/>
+      <div style="margin-top:5px;font-size:10.5px;color:var(--text3);line-height:1.6">키 입력 시 자동 저장 · gemini-2.0-flash · 병렬 처리</div>
     </div>
 
     <button class="search-btn" id="searchBtn">
@@ -731,22 +731,22 @@ async function fetchAbstractsBatch(ids){
 /* ── OPENROUTER KEY ── */
 const OR_KEY=atob("c2stb3ItdjEtMGIzZGQwYjRlMmFiMTc4YmQ3YThmYzljOWZkOGQzNGJjOGQ1NTZmZDRjYjI0NDE5OGM1NGE0NjhmODU0MDQ1Mw==");
 
-/* ── GROQ KEY (localStorage — not in source) ── */
-function getGroqKey(){return(document.getElementById("groqKeyInput")||{}).value||localStorage.getItem("groq_key")||"";}
-function saveGroqKey(v){
-  if(v){localStorage.setItem("groq_key",v);}
-  else{localStorage.removeItem("groq_key");}
+/* ── GEMINI KEY (localStorage — not in source) ── */
+function getGeminiKey(){return(document.getElementById("geminiKeyInput")||{}).value||localStorage.getItem("gemini_key")||"";}
+function saveGeminiKey(v){
+  if(v){localStorage.setItem("gemini_key",v);}
+  else{localStorage.removeItem("gemini_key");}
   updateAiEngineStatus();
 }
 function updateAiEngineStatus(){
   const el=document.getElementById("aiEngineStatus");
   if(!el) return;
-  if(getGroqKey()){
-    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:#0d9488">⚡ Groq</span><span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">llama-3.1-8b-instant</span>`;
+  if(getGeminiKey()){
+    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span><span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.0 Flash</span>`;
     el.style.borderColor="#99f6e4";el.style.background="#f0fdfa";
   }else{
-    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span><span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드</span>`;
-    el.style.borderColor="";el.style.background="";
+    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span><span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드 (폴백)</span>`;
+    el.style.borderColor="";el.style.background="var(--line2)";
   }
 }
 
@@ -758,26 +758,32 @@ function cacheSet(pmid,imp){
   try{localStorage.setItem("pubmed_imp_v3",JSON.stringify(IMP_CACHE));}catch{}
 }
 
-/* ── GROQ BATCH (빠른 병렬 호출) ── */
-async function callGroqBatch(papers){
-  const key=getGroqKey();
-  if(!key) throw new Error("Groq key 없음");
+/* ── GEMINI DIRECT (pLimit 5 병렬, JSON 모드 강제) ── */
+async function callGeminiBatch(papers){
+  const key=getGeminiKey();
+  if(!key) throw new Error("Gemini key 없음");
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const lim5=pLimit(5);
   const results=new Array(papers.length).fill(null);
+  let done=0;
   await Promise.all(papers.map((p,i)=>lim5(async()=>{
     const{sys,usr,max_tokens}=buildPrompt(p.title,p.en,'quick');
-    setSt(`⚡ Groq 분석 중… (${i+1}/${papers.length})`);
-    const resp=await fetch("https://api.groq.com/openai/v1/chat/completions",{
+    const resp=await fetch(url,{
       method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"llama-3.1-8b-instant",max_tokens,temperature:0.1,
-        messages:[{role:"system",content:sys},{role:"user",content:usr}]})
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        systemInstruction:{parts:[{text:sys}]},
+        contents:[{role:"user",parts:[{text:usr}]}],
+        generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
+      })
     });
     if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e?.error?.message||"HTTP "+resp.status);}
     const d=await resp.json();
-    const text=d.choices?.[0]?.message?.content||"";
+    const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
     if(!text) throw new Error("빈 응답");
     results[i]=parseJSON(text);
+    done++;
+    setSt(`✨ Gemini 분석 중… (${done}/${papers.length})`);
   })));
   return results;
 }
@@ -1465,13 +1471,13 @@ async function search(){
     });
 
     if(needAI.length>0){
-      // 1) Groq (빠름: 병렬 5개, ~1-2초)
+      // 1) Gemini (직접 API, 병렬 5개, ~1-2초)
       let imps=null;
-      if(getGroqKey()){
+      if(getGeminiKey()){
         try{
-          imps=await callGroqBatch(needAI);
+          imps=await callGeminiBatch(needAI);
         }catch(e){
-          console.warn("Groq 실패, OpenRouter 배치 폴백:",e.message);
+          console.warn("Gemini 실패, OpenRouter 배치 폴백:",e.message);
         }
       }
       // 2) OpenRouter 배치 (1회 호출)
@@ -1523,12 +1529,12 @@ async function search(){
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
 
 document.getElementById("searchBtn").addEventListener("click",search);
-// Groq key: restore from localStorage + live-save on input
-const _gki=document.getElementById("groqKeyInput");
+// Gemini key: restore from localStorage + live-save on input
+const _gki=document.getElementById("geminiKeyInput");
 if(_gki){
-  const saved=localStorage.getItem("groq_key");
+  const saved=localStorage.getItem("gemini_key");
   if(saved) _gki.value=saved;
-  _gki.addEventListener("input",e=>saveGroqKey(e.target.value.trim()));
+  _gki.addEventListener("input",e=>saveGeminiKey(e.target.value.trim()));
 }
 setDates();renderTags();renderPresets();updateCountBadges();updateAiEngineStatus();
 </script>
