@@ -741,6 +741,18 @@ function parseJSON(raw){
   throw new Error("JSON 없음 — 응답: "+clean.slice(0,120));
 }
 
+/* ── PARSE JSON ARRAY ── */
+function parseJSONArray(raw){
+  const stripped=(raw||"").replace(/<think>[\s\S]*?<\/think>/gi,"");
+  const clean=stripped.replace(/^```(?:json)?\s*/,"").replace(/\s*```$/,"").trim();
+  // Direct parse
+  try{const r=JSON.parse(clean);if(Array.isArray(r))return r;}catch{}
+  // Find [...] block
+  const m=clean.match(/\[[\s\S]*\]/);
+  if(m){try{const r=JSON.parse(m[0]);if(Array.isArray(r))return r;}catch{}}
+  throw new Error("JSON 배열 없음 — 응답: "+clean.slice(0,120));
+}
+
 /* ── VIATRIS PRODUCT CONTEXT ── */
 const VIATRIS_CONTEXT=`
 You are writing for Viatris Korea medical representatives. Viatris key products:
@@ -761,6 +773,55 @@ When writing clinical and marketing sections:
 - If the paper is about a competitor drug, highlight how the findings support switching to or combining with the relevant Viatris product
 - Use product trade names (리피토®, 쎄레브렉스® etc.) naturally in the text
 `.trim();
+
+/* ── BATCH PROMPT (논문 N편 → JSON 배열 1회 호출) ── */
+function buildBatchPrompt(papers){
+  const items=papers.map((p,i)=>{
+    const abs=[p.en.background,p.en.methods,p.en.results,p.en.conclusion].filter(Boolean).join(" ").slice(0,1200);
+    return `[${i+1}] Title: ${p.title}\nAbstract: ${abs}`;
+  }).join("\n\n");
+  const sys=`You are a medical research analyst for Viatris Korea. Respond ONLY with a valid JSON array. No markdown, no code block, no explanation.\n\n${VIATRIS_CONTEXT}`;
+  const usr=`Analyze these ${papers.length} medical papers. Return ONLY a JSON array with exactly ${papers.length} objects in the same order:
+[{"headline":"Viatris 제품 연결 핵심 한줄","clinical":"임상 적용 2-3문장(수치+제품명)","marketing":"MR 토크트랙 1-2문장"},...]
+
+Papers:
+${items}`;
+  return{sys,usr,max_tokens:Math.min(papers.length*350+200,4000)};
+}
+
+/* ── BATCH AI CALL (1회 호출로 전체 논문 분석) ── */
+async function callOpenRouterBatch(papers){
+  const models=await fetchFreeModels();
+  const{sys,usr,max_tokens}=buildBatchPrompt(papers);
+  let lastErr;
+  for(const model of models){
+    try{
+      setSt(`AI 임상 시사점 일괄 분석 중… (${model.split("/")[1]?.split(":")[0]||model})`);
+      const resp=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+OR_KEY},
+        body:JSON.stringify({model,max_tokens,temperature:0.1,
+          messages:[{role:"system",content:sys},{role:"user",content:usr}]})
+      });
+      if(!resp.ok){
+        const e=await resp.json().catch(()=>({}));
+        throw new Error(e?.error?.message||"HTTP "+resp.status);
+      }
+      const d=await resp.json();
+      const text=d.choices?.[0]?.message?.content||"";
+      if(!text) throw new Error("빈 응답");
+      const arr=parseJSONArray(text);
+      if(!Array.isArray(arr)||arr.length!==papers.length)
+        throw new Error(`배열 크기 불일치: 기대 ${papers.length}, 실제 ${arr.length}`);
+      return arr;
+    }catch(e){
+      console.warn(`[OR batch] ${model}:`,e.message);
+      lastErr=e;
+      await sleep(600);
+    }
+  }
+  throw lastErr||new Error("모든 모델 배치 실패");
+}
 
 /* ── PROMPT ── */
 function buildPrompt(title, en, mode='quick'){
@@ -1335,22 +1396,36 @@ async function search(){
     content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
-    // AI 임상 시사점 — 빠른 모드(3필드만) 병렬 분석, 인포그래픽은 버튼 클릭 시 지연 로드
-    const lim3=pLimit(3);
-    let aiIdx=0;
-    await Promise.all(papers.map(p=>lim3(async()=>{
-      await sleep(aiIdx++ * 150);
-      const cell=document.getElementById(`imp-${p.pmid}`);
-      if(!cell) return;
-      try{
-        const imp=await buildImplication(p.title,p.en,'quick');
+    // AI 임상 시사점 — 배치 1회 호출로 전체 논문 동시 분석
+    try{
+      const imps=await callOpenRouterBatch(papers);
+      imps.forEach((imp,i)=>{
+        const p=papers[i];
+        if(!imp) return;
         p.imp=imp;
-        cell.innerHTML=impHTML(imp);
-      }catch(e){
-        console.error(`AI 분석 실패 PMID ${p.pmid}:`,e.message);
-        cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
-      }
-    })));
+        const cell=document.getElementById(`imp-${p.pmid}`);
+        if(cell) cell.innerHTML=impHTML(imp);
+      });
+    }catch(batchErr){
+      // 배치 실패 시 개별 호출로 폴백
+      console.warn("배치 실패, 개별 호출 폴백:",batchErr.message);
+      setSt("배치 실패 — 개별 분석 중…");
+      const lim3=pLimit(3);
+      let aiIdx=0;
+      await Promise.all(papers.map(p=>lim3(async()=>{
+        await sleep(aiIdx++ * 200);
+        const cell=document.getElementById(`imp-${p.pmid}`);
+        if(!cell) return;
+        try{
+          const imp=await buildImplication(p.title,p.en,'quick');
+          p.imp=imp;
+          cell.innerHTML=impHTML(imp);
+        }catch(e){
+          console.error(`AI 분석 실패 PMID ${p.pmid}:`,e.message);
+          cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
+        }
+      })));
+    }
 
     setSt(`완료 — ${papers.length}편`,false,false);
     setTimeout(clearSt,3000);
