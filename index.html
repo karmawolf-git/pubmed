@@ -1483,9 +1483,13 @@ async function search(){
         imps=await callGeminiBatch(needAI);
       }catch(e){
         console.error("Gemini 실패:",e.message);
-        alert("🔍 Gemini 오류 진단:\n"+e.message);
+        // 오류를 화면에 직접 표시 (팝업 차단 우회)
+        needAI.forEach(p=>{
+          const cell=document.getElementById(`imp-${p.pmid}`);
+          if(cell) cell.innerHTML=`<div class="imp-txt" style="color:#dc2626;font-weight:600">🔍 Gemini 오류: ${esc(e.message)}</div>`;
+        });
         setSt("⚠️ Gemini 오류: "+e.message,true,false);
-        await sleep(1500);
+        await sleep(3000);
         setSt("OpenRouter 배치 분석 중…");
       }
       // 2) OpenRouter 배치 폴백
