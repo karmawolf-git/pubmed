@@ -1482,13 +1482,17 @@ async function search(){
 
     if(needAI.length>0){
       let imps=null;
+      let geminiErrMsg="";
       // 1) Gemini 직접 API
       try{
         imps=await callGeminiBatch(needAI);
       }catch(e){
-        const gErr=e.message.slice(0,120);
-        console.warn("Gemini 실패, OpenRouter 폴백:", e.message);
-        setSt(`⚠️ Gemini 오류: ${gErr} → OR 폴백`);
+        geminiErrMsg=e.message.slice(0,200);
+        console.warn("Gemini 실패:", e.message);
+        setSt(`⚠️ Gemini 오류: ${geminiErrMsg}`);
+        // Gemini 오류를 첫 번째 카드에 고정 표시 (오류 확인용)
+        const firstCell=document.getElementById(`imp-${needAI[0]?.pmid}`);
+        if(firstCell) firstCell.innerHTML=`<div class="imp-txt" style="color:#dc2626;font-size:11px">🔍 Gemini 오류 (OpenRouter 폴백 시도 중): <strong>${esc(geminiErrMsg)}</strong></div>`;
       }
       // 2) OpenRouter 배치 폴백
       if(!imps){
