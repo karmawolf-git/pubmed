@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609h</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609i</span>
       </div>
     </div>
 
@@ -1000,8 +1000,36 @@ async function callOpenRouter(title, en, mode='quick'){
   throw lastErr||new Error("모든 모델 실패");
 }
 
-/* ── AI 분석 ── */
+/* ── AI 분석 (인포그래픽 full 모드 — Gemini 우선, OpenRouter 폴백) ── */
 async function buildImplication(title, en, mode='quick'){
+  const{sys,usr,max_tokens}=buildPrompt(title,en,mode);
+  const key=getGeminiKey();
+  // Gemini 시도
+  if(key){
+    for(const model of GEMINI_MODELS){
+      const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      try{
+        const resp=await fetch(url,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            contents:[{role:"user",parts:[{text:sys+"\n\n"+usr}]}],
+            generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
+          })
+        });
+        if(!resp.ok) throw new Error("HTTP "+resp.status);
+        const d=await resp.json();
+        const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        if(!text) throw new Error("빈 응답");
+        const imp=parseJSON(text);
+        if(mode==='full') imp._fullLoaded=true;
+        return imp;
+      }catch(e){
+        console.warn(`buildImplication Gemini [${model}]:`,e.message);
+      }
+    }
+  }
+  // OpenRouter 폴백
   try{
     const imp=await callOpenRouter(title,en,mode);
     if(mode==='full') imp._fullLoaded=true;
