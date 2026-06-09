@@ -400,13 +400,10 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
 
     <div>
       <div class="sec-lbl">AI 분석 엔진</div>
-      <div id="aiEngineStatus" style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid var(--line);border-radius:var(--r-sm);background:var(--line2);margin-bottom:8px">
-        <span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span>
-        <span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드 (폴백)</span>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
+        <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
+        <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.0 Flash</span>
       </div>
-      <label class="fld-lbl" for="geminiKeyInput">✨ Gemini API Key <span style="color:var(--accent);font-weight:400">(aistudio.google.com 무료 발급)</span></label>
-      <input type="password" id="geminiKeyInput" placeholder="AIza…" style="font-size:12px"/>
-      <div style="margin-top:5px;font-size:10.5px;color:var(--text3);line-height:1.6">키 입력 시 자동 저장 · gemini-2.0-flash · 병렬 처리</div>
     </div>
 
     <button class="search-btn" id="searchBtn">
@@ -731,24 +728,9 @@ async function fetchAbstractsBatch(ids){
 /* ── OPENROUTER KEY ── */
 const OR_KEY=atob("c2stb3ItdjEtMGIzZGQwYjRlMmFiMTc4YmQ3YThmYzljOWZkOGQzNGJjOGQ1NTZmZDRjYjI0NDE5OGM1NGE0NjhmODU0MDQ1Mw==");
 
-/* ── GEMINI KEY (localStorage — not in source) ── */
-function getGeminiKey(){return(document.getElementById("geminiKeyInput")||{}).value||localStorage.getItem("gemini_key")||"";}
-function saveGeminiKey(v){
-  if(v){localStorage.setItem("gemini_key",v);}
-  else{localStorage.removeItem("gemini_key");}
-  updateAiEngineStatus();
-}
-function updateAiEngineStatus(){
-  const el=document.getElementById("aiEngineStatus");
-  if(!el) return;
-  if(getGeminiKey()){
-    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span><span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.0 Flash</span>`;
-    el.style.borderColor="#99f6e4";el.style.background="#f0fdfa";
-  }else{
-    el.innerHTML=`<span style="font-size:12px;font-weight:700;color:var(--text2)">OpenRouter</span><span class="prov-badge free" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">배치 모드 (폴백)</span>`;
-    el.style.borderColor="";el.style.background="var(--line2)";
-  }
-}
+/* ── GEMINI KEY ── */
+const GEMINI_KEY=atob("QVEuQWI4Uk42TEQ0aTV6b1JHbWg5VUVoM2RPZkZqUzZMZDRaRFB3NHAzM3V1bW5VUFhXdEE=");
+function getGeminiKey(){return GEMINI_KEY;}
 
 /* ── PMID-LEVEL CACHE (localStorage) ── */
 const IMP_CACHE=(()=>{try{return JSON.parse(localStorage.getItem("pubmed_imp_v3")||"{}");}catch{return{};}})();
@@ -1529,14 +1511,7 @@ async function search(){
 function esc(s){return(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
 
 document.getElementById("searchBtn").addEventListener("click",search);
-// Gemini key: restore from localStorage + live-save on input
-const _gki=document.getElementById("geminiKeyInput");
-if(_gki){
-  const saved=localStorage.getItem("gemini_key");
-  if(saved) _gki.value=saved;
-  _gki.addEventListener("input",e=>saveGeminiKey(e.target.value.trim()));
-}
-setDates();renderTags();renderPresets();updateCountBadges();updateAiEngineStatus();
+setDates();renderTags();renderPresets();updateCountBadges();
 </script>
 </body>
 </html>
