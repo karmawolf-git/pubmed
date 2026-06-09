@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609g</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609h</span>
       </div>
     </div>
 
@@ -739,11 +739,11 @@ const GEMINI_KEY=atob("QVEuQWI4Uk42SUh6S2FBSXM4Y1JaWGhvc2dZUHFxYlBiVFNkZDNDTU9XT
 function getGeminiKey(){return GEMINI_KEY;}
 
 /* ── PMID-LEVEL CACHE (localStorage) ── */
-const IMP_CACHE=(()=>{try{return JSON.parse(localStorage.getItem("pubmed_imp_v3")||"{}");}catch{return{};}})();
+const IMP_CACHE=(()=>{try{return JSON.parse(localStorage.getItem("pubmed_imp_v4")||"{}");}catch{return{};}})();
 function cacheGet(pmid){return IMP_CACHE[pmid]||null;}
 function cacheSet(pmid,imp){
   IMP_CACHE[pmid]=imp;
-  try{localStorage.setItem("pubmed_imp_v3",JSON.stringify(IMP_CACHE));}catch{}
+  try{localStorage.setItem("pubmed_imp_v4",JSON.stringify(IMP_CACHE));}catch{}
 }
 
 /* ── GEMINI DIRECT (pLimit 5 병렬, JSON 모드 강제) ── */
