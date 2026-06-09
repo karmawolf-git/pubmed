@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609b</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609c</span>
       </div>
     </div>
 
@@ -752,6 +752,7 @@ async function callGeminiBatch(papers){
   const lim5=pLimit(5);
   const results=new Array(papers.length).fill(null);
   let done=0;
+  let firstErr="";  // 실제 첫 오류를 보존 (네트워크 차단/인증 등 진단용)
   for(const model of GEMINI_MODELS){
     const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
     const pending=papers.map((_,i)=>i).filter(i=>results[i]===null);
@@ -760,8 +761,9 @@ async function callGeminiBatch(papers){
     await Promise.all(pending.map(i=>lim5(async()=>{
       const p=papers[i];
       const{sys,usr,max_tokens}=buildPrompt(p.title,p.en,'quick');
+      let resp;
       try{
-        const resp=await fetch(url,{
+        resp=await fetch(url,{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({
@@ -769,12 +771,23 @@ async function callGeminiBatch(papers){
             generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
           })
         });
+      }catch(netErr){
+        // fetch 자체 실패 = 네트워크 차단/방화벽/CORS — 가장 중요한 진단 신호
+        const m=`네트워크 차단(fetch 실패): ${netErr.name||"Error"} - ${netErr.message}`;
+        if(!firstErr) firstErr=m;
+        console.error(`Gemini [${model}][${i}] fetch 실패:`,netErr);
+        errors.push({i,msg:m});
+        return;
+      }
+      try{
         if(!resp.ok){
           const e=await resp.json().catch(()=>({}));
           const msg=(e?.error?.message||"HTTP "+resp.status).slice(0,200);
           console.error(`Gemini [${model}] HTTP ${resp.status}:`,msg);
+          const full=`HTTP ${resp.status}: ${msg}`;
+          if(!firstErr) firstErr=full;
           if(resp.status===401||resp.status===403) throw new Error("Gemini 인증 오류 ("+resp.status+"): "+msg);
-          throw new Error(msg);
+          throw new Error(full);
         }
         const d=await resp.json();
         const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
@@ -787,6 +800,7 @@ async function callGeminiBatch(papers){
         setSt(`✨ Gemini(${model}) 분석 중… (${done}/${papers.length})`);
       }catch(e){
         if(e.message.startsWith("Gemini 인증 오류")) throw e;
+        if(!firstErr) firstErr=e.message;
         console.warn(`Gemini [${model}][${i}]:`,e.message);
         errors.push({i,msg:e.message});
       }
@@ -794,7 +808,7 @@ async function callGeminiBatch(papers){
     if(!errors.length) break;
   }
   const failed=results.filter(r=>r===null).length;
-  if(failed===papers.length) throw new Error("모든 Gemini 모델 실패");
+  if(failed===papers.length) throw new Error(firstErr||"모든 Gemini 모델 실패");
   return results;
 }
 
@@ -1487,12 +1501,18 @@ async function search(){
       try{
         imps=await callGeminiBatch(needAI);
       }catch(e){
-        geminiErrMsg=e.message.slice(0,200);
-        console.warn("Gemini 실패:", e.message);
-        setSt(`⚠️ Gemini 오류: ${geminiErrMsg}`);
-        // Gemini 오류를 첫 번째 카드에 고정 표시 (오류 확인용)
-        const firstCell=document.getElementById(`imp-${needAI[0]?.pmid}`);
-        if(firstCell) firstCell.innerHTML=`<div class="imp-txt" style="color:#dc2626;font-size:11px">🔍 Gemini 오류 (OpenRouter 폴백 시도 중): <strong>${esc(geminiErrMsg)}</strong></div>`;
+        geminiErrMsg=(e.name?e.name+": ":"")+e.message;
+        console.warn("Gemini 실패:", geminiErrMsg);
+        setSt(`⚠️ Gemini 오류: ${geminiErrMsg.slice(0,80)}`);
+        // Gemini 오류를 mainContent 최상단 고정 배너로 표시 (폴백이 덮어쓰지 못하게)
+        const mc=document.getElementById("mainContent");
+        if(mc && !document.getElementById("gemErrBanner")){
+          const banner=document.createElement("div");
+          banner.id="gemErrBanner";
+          banner.style.cssText="margin:0 0 16px;padding:13px 16px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;font-size:12.5px;color:#991b1b;line-height:1.6";
+          banner.innerHTML=`<strong>🔍 Gemini 진단:</strong> <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:11.5px">${esc(geminiErrMsg)}</code><br><span style="font-size:11px;color:#b91c1c">→ OpenRouter로 폴백합니다. 이 메시지를 알려주세요.</span>`;
+          mc.insertBefore(banner,mc.firstChild);
+        }
       }
       // 2) OpenRouter 배치 폴백
       if(!imps){
