@@ -1489,8 +1489,8 @@ async function search(){
           if(cell) cell.innerHTML=`<div class="imp-txt" style="color:#dc2626;font-weight:600">🔍 Gemini 오류: ${esc(e.message)}</div>`;
         });
         setSt("⚠️ Gemini 오류: "+e.message,true,false);
-        await sleep(3000);
-        setSt("OpenRouter 배치 분석 중…");
+        // 폴백 없이 중단 — 오류 메시지 확인용
+        return;
       }
       // 2) OpenRouter 배치 폴백
       if(!imps){
