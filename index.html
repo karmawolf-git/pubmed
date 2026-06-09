@@ -747,26 +747,41 @@ async function callGeminiBatch(papers){
   const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
   const lim5=pLimit(5);
   const results=new Array(papers.length).fill(null);
+  const errors=[];
   let done=0;
   await Promise.all(papers.map((p,i)=>lim5(async()=>{
     const{sys,usr,max_tokens}=buildPrompt(p.title,p.en,'quick');
-    const resp=await fetch(url,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        systemInstruction:{parts:[{text:sys}]},
-        contents:[{role:"user",parts:[{text:usr}]}],
-        generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
-      })
-    });
-    if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e?.error?.message||"HTTP "+resp.status);}
-    const d=await resp.json();
-    const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
-    if(!text) throw new Error("빈 응답");
-    results[i]=parseJSON(text);
-    done++;
-    setSt(`✨ Gemini 분석 중… (${done}/${papers.length})`);
+    try{
+      const resp=await fetch(url,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          systemInstruction:{parts:[{text:sys}]},
+          contents:[{role:"user",parts:[{text:usr}]}],
+          generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
+        })
+      });
+      if(!resp.ok){
+        const e=await resp.json().catch(()=>({}));
+        const msg=e?.error?.message||"HTTP "+resp.status;
+        // 인증 오류는 즉시 전체 중단
+        if(resp.status===400||resp.status===401||resp.status===403) throw new Error("Gemini 인증 오류: "+msg);
+        throw new Error(msg);
+      }
+      const d=await resp.json();
+      const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
+      if(!text) throw new Error("빈 응답");
+      results[i]=parseJSON(text);
+      done++;
+      setSt(`✨ Gemini 분석 중… (${done}/${papers.length})`);
+    }catch(e){
+      // 인증 오류는 재throw → 전체 callGeminiBatch 중단
+      if(e.message.startsWith("Gemini 인증 오류")) throw e;
+      console.warn(`Gemini 개별 실패 [${i}]:`,e.message);
+      errors.push(e.message);
+    }
   })));
+  if(errors.length===papers.length) throw new Error(errors[0]);
   return results;
 }
 
@@ -1453,45 +1468,26 @@ async function search(){
     });
 
     if(needAI.length>0){
-      // 1) Gemini (직접 API, 병렬 5개, ~1-2초)
       let imps=null;
-      if(getGeminiKey()){
-        try{
-          imps=await callGeminiBatch(needAI);
-        }catch(e){
-          console.warn("Gemini 실패, OpenRouter 배치 폴백:",e.message);
-        }
+      let aiErr=null;
+      try{
+        imps=await callGeminiBatch(needAI);
+      }catch(e){
+        aiErr=e.message;
+        console.error("Gemini 실패:",e.message);
+        setSt("Gemini 오류: "+e.message,true,false);
       }
-      // 2) OpenRouter 배치 (1회 호출)
-      if(!imps){
-        try{
-          imps=await callOpenRouterBatch(needAI);
-        }catch(e){
-          console.warn("배치 실패, 개별 호출 폴백:",e.message);
-          setSt("개별 분석 중…");
-        }
-      }
-      // 3) 개별 호출 폴백
-      if(!imps){
-        const lim3=pLimit(3);let idx=0;
-        await Promise.all(needAI.map(p=>lim3(async()=>{
-          await sleep(idx++*200);
-          const cell=document.getElementById(`imp-${p.pmid}`);
-          try{
-            const imp=await buildImplication(p.title,p.en,'quick');
-            p.imp=imp;cacheSet(p.pmid,imp);
-            if(cell) cell.innerHTML=impHTML(imp);
-          }catch(e){
-            if(cell) cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
-          }
-        })));
-      }else{
+      if(imps){
         imps.forEach((imp,i)=>{
           const p=needAI[i];
-          if(!imp) return;
-          p.imp=imp;cacheSet(p.pmid,imp);
           const cell=document.getElementById(`imp-${p.pmid}`);
-          if(cell) cell.innerHTML=impHTML(imp);
+          if(imp){p.imp=imp;cacheSet(p.pmid,imp);if(cell)cell.innerHTML=impHTML(imp);}
+          else if(cell){cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">분석 실패</div>`;}
+        });
+      }else{
+        needAI.forEach(p=>{
+          const cell=document.getElementById(`imp-${p.pmid}`);
+          if(cell) cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(aiErr||"알 수 없는 오류")}</div>`;
         });
       }
     }
