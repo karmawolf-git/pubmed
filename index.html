@@ -729,7 +729,7 @@ async function fetchAbstractsBatch(ids){
 const OR_KEY=atob("c2stb3ItdjEtMGIzZGQwYjRlMmFiMTc4YmQ3YThmYzljOWZkOGQzNGJjOGQ1NTZmZDRjYjI0NDE5OGM1NGE0NjhmODU0MDQ1Mw==");
 
 /* ── GEMINI KEY ── */
-const GEMINI_KEY=atob("QVEuQWI4Uk42TEQ0aTV6b1JHbWg5VUVoM2RPZkZqUzZMZDRaRFB3NHAzM3V1bW5VUFhXdEE=");
+const GEMINI_KEY=atob("QVEuQWI4Uk42SUh6S2FBSXM4Y1JaWGhvc2dZUHFxYlBiVFNkZDNDTU9XTmMwQTgyRm5CSlE=");
 function getGeminiKey(){return GEMINI_KEY;}
 
 /* ── PMID-LEVEL CACHE (localStorage) ── */
@@ -741,47 +741,56 @@ function cacheSet(pmid,imp){
 }
 
 /* ── GEMINI DIRECT (pLimit 5 병렬, JSON 모드 강제) ── */
+const GEMINI_MODELS=["gemini-2.5-flash-lite","gemini-2.5-flash","gemini-flash-lite-latest"];
 async function callGeminiBatch(papers){
   const key=getGeminiKey();
   if(!key) throw new Error("Gemini key 없음");
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  // 첫 번째로 응답 가능한 모델 선택
+  let activeModel=GEMINI_MODELS[0];
   const lim5=pLimit(5);
   const results=new Array(papers.length).fill(null);
-  const errors=[];
   let done=0;
-  await Promise.all(papers.map((p,i)=>lim5(async()=>{
-    const{sys,usr,max_tokens}=buildPrompt(p.title,p.en,'quick');
-    try{
-      const resp=await fetch(url,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          systemInstruction:{parts:[{text:sys}]},
-          contents:[{role:"user",parts:[{text:usr}]}],
-          generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
-        })
-      });
-      if(!resp.ok){
-        const e=await resp.json().catch(()=>({}));
-        const msg=e?.error?.message||"HTTP "+resp.status;
-        // 인증 오류는 즉시 전체 중단
-        if(resp.status===400||resp.status===401||resp.status===403) throw new Error("Gemini 인증 오류: "+msg);
-        throw new Error(msg);
+  // 모델별 순차 시도 (앞 모델 전체 실패 시 다음 모델로)
+  for(const model of GEMINI_MODELS){
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const pending=papers.map((_,i)=>i).filter(i=>results[i]===null);
+    if(!pending.length) break;
+    const errors=[];
+    await Promise.all(pending.map(i=>lim5(async()=>{
+      const p=papers[i];
+      const{sys,usr,max_tokens}=buildPrompt(p.title,p.en,'quick');
+      try{
+        const resp=await fetch(url,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            systemInstruction:{parts:[{text:sys}]},
+            contents:[{role:"user",parts:[{text:usr}]}],
+            generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json",thinkingConfig:{thinkingBudget:0}}
+          })
+        });
+        if(!resp.ok){
+          const e=await resp.json().catch(()=>({}));
+          const msg=e?.error?.message||"HTTP "+resp.status;
+          if(resp.status===401||resp.status===403) throw new Error("Gemini 인증 오류: "+msg);
+          throw new Error(msg);
+        }
+        const d=await resp.json();
+        const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        if(!text) throw new Error("빈 응답");
+        results[i]=parseJSON(text);
+        done++;
+        setSt(`✨ Gemini(${model}) 분석 중… (${done}/${papers.length})`);
+      }catch(e){
+        if(e.message.startsWith("Gemini 인증 오류")) throw e;
+        console.warn(`Gemini [${model}][${i}]:`,e.message);
+        errors.push({i,msg:e.message});
       }
-      const d=await resp.json();
-      const text=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
-      if(!text) throw new Error("빈 응답");
-      results[i]=parseJSON(text);
-      done++;
-      setSt(`✨ Gemini 분석 중… (${done}/${papers.length})`);
-    }catch(e){
-      // 인증 오류는 재throw → 전체 callGeminiBatch 중단
-      if(e.message.startsWith("Gemini 인증 오류")) throw e;
-      console.warn(`Gemini 개별 실패 [${i}]:`,e.message);
-      errors.push(e.message);
-    }
-  })));
-  if(errors.length===papers.length) throw new Error(errors[0]);
+    })));
+    if(!errors.length) break; // 모두 성공
+  }
+  const failed=results.filter(r=>r===null).length;
+  if(failed===papers.length) throw new Error("모든 Gemini 모델 실패");
   return results;
 }
 
