@@ -1483,6 +1483,7 @@ async function search(){
         imps=await callGeminiBatch(needAI);
       }catch(e){
         console.error("Gemini 실패:",e.message);
+        alert("🔍 Gemini 오류 진단:\n"+e.message);
         setSt("⚠️ Gemini 오류: "+e.message,true,false);
         await sleep(1500);
         setSt("OpenRouter 배치 분석 중…");
