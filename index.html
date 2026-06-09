@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609i</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609j</span>
       </div>
     </div>
 
@@ -947,6 +947,7 @@ const OR_FALLBACK=[
   "meta-llama/llama-3.3-70b-instruct:free"
 ];
 let _orModels=null;
+let papers=[];  // 전역 — toggleInfog 등 외부 함수에서 접근
 
 async function fetchFreeModels(){
   if(_orModels) return _orModels;
@@ -1473,7 +1474,7 @@ async function search(){
     smu.searchParams.set("db","pubmed");smu.searchParams.set("id",ids.join(","));
     smu.searchParams.set("retmode","json");smu.searchParams.set("email",NCBI_EMAIL);
     const smData=await withRetry(()=>fj(smu.toString()));const res=smData.result||{};
-    const papers=[];
+    papers=[];  // 전역 초기화
 
     // 초록 전체를 XML 1번 호출로 일괄 수집 + 모델 목록 병렬 프리페치
     setSt("초록 일괄 로드 중…");
