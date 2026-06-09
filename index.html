@@ -766,7 +766,7 @@ async function callGeminiBatch(papers){
           body:JSON.stringify({
             systemInstruction:{parts:[{text:sys}]},
             contents:[{role:"user",parts:[{text:usr}]}],
-            generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json",thinkingConfig:{thinkingBudget:0}}
+            generationConfig:{maxOutputTokens:max_tokens,temperature:0.1,responseMimeType:"application/json"}
           })
         });
         if(!resp.ok){
@@ -1482,7 +1482,9 @@ async function search(){
       try{
         imps=await callGeminiBatch(needAI);
       }catch(e){
-        console.warn("Gemini 실패, OpenRouter 폴백:",e.message);
+        console.error("Gemini 실패:",e.message);
+        setSt("⚠️ Gemini 오류: "+e.message,true,false);
+        await sleep(1500);
         setSt("OpenRouter 배치 분석 중…");
       }
       // 2) OpenRouter 배치 폴백
