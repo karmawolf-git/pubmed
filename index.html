@@ -1469,25 +1469,42 @@ async function search(){
 
     if(needAI.length>0){
       let imps=null;
-      let aiErr=null;
+      // 1) Gemini 직접 API
       try{
         imps=await callGeminiBatch(needAI);
       }catch(e){
-        aiErr=e.message;
-        console.error("Gemini 실패:",e.message);
-        setSt("Gemini 오류: "+e.message,true,false);
+        console.warn("Gemini 실패, OpenRouter 폴백:",e.message);
+        setSt("OpenRouter 배치 분석 중…");
       }
-      if(imps){
+      // 2) OpenRouter 배치 폴백
+      if(!imps){
+        try{
+          imps=await callOpenRouterBatch(needAI);
+        }catch(e){
+          console.warn("OpenRouter 배치 실패, 개별 폴백:",e.message);
+          setSt("개별 분석 중…");
+        }
+      }
+      // 3) OpenRouter 개별 호출 폴백
+      if(!imps){
+        const lim3=pLimit(3);let idx=0;
+        await Promise.all(needAI.map(p=>lim3(async()=>{
+          await sleep(idx++*300);
+          const cell=document.getElementById(`imp-${p.pmid}`);
+          try{
+            const imp=await buildImplication(p.title,p.en,'quick');
+            p.imp=imp;cacheSet(p.pmid,imp);
+            if(cell) cell.innerHTML=impHTML(imp);
+          }catch(e){
+            if(cell) cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
+          }
+        })));
+      }else{
         imps.forEach((imp,i)=>{
           const p=needAI[i];
           const cell=document.getElementById(`imp-${p.pmid}`);
           if(imp){p.imp=imp;cacheSet(p.pmid,imp);if(cell)cell.innerHTML=impHTML(imp);}
           else if(cell){cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">분석 실패</div>`;}
-        });
-      }else{
-        needAI.forEach(p=>{
-          const cell=document.getElementById(`imp-${p.pmid}`);
-          if(cell) cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(aiErr||"알 수 없는 오류")}</div>`;
         });
       }
     }
