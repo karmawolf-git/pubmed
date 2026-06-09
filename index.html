@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609f</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609g</span>
       </div>
     </div>
 
@@ -1483,6 +1483,15 @@ async function search(){
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
     // ── AI 임상 시사점 ──
+    // 항상 실행되는 진단 로거
+    const diagEl=document.getElementById("geminiDiag");
+    const diagLog=(msg,color)=>{
+      const plain=msg.replace(/<[^>]+>/g,"");
+      if(diagEl){diagEl.style.border=`1.5px solid ${color||"#99f6e4"}`;diagEl.innerHTML=msg;}
+      setSt(plain.slice(0,80));
+      console.log("[DIAG]",plain);
+    };
+
     // 0) 캐시된 논문 즉시 표시
     const needAI=[];
     papers.forEach(p=>{
@@ -1496,16 +1505,12 @@ async function search(){
       }
     });
 
+    // 항상 표시: 캐시 현황
+    diagLog(`검색 완료 — ${papers.length}편 중 캐시 ${papers.length-needAI.length}편 / 분석 필요 ${needAI.length}편`);
+
     if(needAI.length>0){
       let imps=null;
       let geminiErrMsg="";
-      const diagEl=document.getElementById("geminiDiag");
-      const diagLog=(msg)=>{
-        const plain=msg.replace(/<[^>]+>/g,"");
-        if(diagEl) diagEl.innerHTML=msg;
-        setSt(plain.slice(0,80));
-        console.log("[DIAG]",plain);
-      };
       diagLog(`▶ Gemini 시작 — ${needAI.length}편`);
       // 1) Gemini 직접 API
       try{
