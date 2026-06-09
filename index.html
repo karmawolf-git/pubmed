@@ -763,26 +763,35 @@ When writing clinical and marketing sections:
 `.trim();
 
 /* ── PROMPT ── */
-function buildPrompt(title, en){
+function buildPrompt(title, en, mode='quick'){
   const abs=[en.background,en.methods,en.results,en.conclusion].filter(Boolean).join(" ").slice(0,2500);
   const sys=`You are a medical research analyst for Viatris Korea. Respond ONLY with a valid JSON object. No markdown, no code block, no explanation.\n\n${VIATRIS_CONTEXT}`;
+  if(mode==='quick'){
+    const usr=`Analyze this medical paper. Return ONLY this JSON (no other text):
+{"headline":"핵심 한줄 요약(Viatris 제품 연결)","clinical":"임상 적용 2-3문장(구체적 수치+제품명 포함)","marketing":"MR 토크트랙 1-2문장(의사 대상 제품 어필)"}
+
+Title: ${title}
+Abstract: ${abs}`;
+    return{sys,usr,max_tokens:400};
+  }
+  // full mode — for infographic
   const usr=`Analyze this medical paper abstract and return structured Korean data.
 
 Title: ${title}
 Abstract: ${abs}
 
 Rules:
-- background/methods/results/conclusion: each bullet = ONE complete Korean sentence (40-60 chars). Do NOT truncate — write a proper sentence per point. Split long content into multiple single-sentence bullets.
-- clinical: 2-3 full sentences — concrete treatment decisions citing this paper's numbers/drugs, explicitly connecting to the relevant Viatris product (리피토®/카듀엣®/노바스크®/쎄레브렉스®/리리카®)
-- marketing: 1-2 full sentences — specific MR talk-track using this paper to promote the relevant Viatris product to a physician
+- background/methods/results/conclusion: each bullet = ONE complete Korean sentence (40-60 chars). Split long content into multiple bullets.
+- clinical: 2-3 full sentences — concrete treatment decisions citing this paper's numbers/drugs, explicitly connecting to the relevant Viatris product
+- marketing: 1-2 full sentences — specific MR talk-track using this paper to promote the relevant Viatris product
 - headline: one punchy Korean sentence that highlights the Viatris product angle
 - key_stats: up to 4 key numbers (HR, OR, %, p-value)
 - study_table: 5 rows with keys "항목" and "내용" (설계/대상/중재/비교군/추적기간)
 - chart_data: 2-4 items with numeric "value"
 
 Return EXACTLY this JSON (no other text):
-{"headline":"...","background":["...","..."],"methods":["...","..."],"results":["...","...","..."],"conclusion":["...","..."],"key_stats":[{"label":"...","value":"...","unit":"..."}],"study_table":[{"항목":"설계","내용":"..."},{"항목":"대상","내용":"..."},{"항목":"중재","내용":"..."},{"항목":"비교군","내용":"..."},{"항목":"추적기간","내용":"..."}],"chart_data":[{"label":"...","value":0},{"label":"...","value":0}],"clinical":"문장1. 문장2. 문장3.","marketing":"문장1. 문장2."}`;
-  return{sys,usr};
+{"headline":"...","background":["..."],"methods":["..."],"results":["..."],"conclusion":["..."],"key_stats":[{"label":"...","value":"...","unit":"..."}],"study_table":[{"항목":"설계","내용":"..."},{"항목":"대상","내용":"..."},{"항목":"중재","내용":"..."},{"항목":"비교군","내용":"..."},{"항목":"추적기간","내용":"..."}],"chart_data":[{"label":"...","value":0},{"label":"...","value":0}],"clinical":"문장1. 문장2. 문장3.","marketing":"문장1. 문장2."}`;
+  return{sys,usr,max_tokens:1500};
 }
 
 /* ── OPENROUTER: 런타임에 사용 가능한 무료 모델 조회 ── */
@@ -814,9 +823,9 @@ async function fetchFreeModels(){
   return _orModels;
 }
 
-async function callOpenRouter(title, en){
+async function callOpenRouter(title, en, mode='quick'){
   const models=await fetchFreeModels();
-  const{sys,usr}=buildPrompt(title,en);
+  const{sys,usr,max_tokens}=buildPrompt(title,en,mode);
   let lastErr;
   for(const model of models){
     try{
@@ -824,7 +833,7 @@ async function callOpenRouter(title, en){
       const resp=await fetch("https://openrouter.ai/api/v1/chat/completions",{
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+OR_KEY},
-        body:JSON.stringify({model,max_tokens:1500,temperature:0.1,
+        body:JSON.stringify({model,max_tokens,temperature:0.1,
           messages:[{role:"system",content:sys},{role:"user",content:usr}]})
       });
       if(!resp.ok){
@@ -845,9 +854,11 @@ async function callOpenRouter(title, en){
 }
 
 /* ── AI 분석 ── */
-async function buildImplication(title, en){
+async function buildImplication(title, en, mode='quick'){
   try{
-    return await callOpenRouter(title,en);
+    const imp=await callOpenRouter(title,en,mode);
+    if(mode==='full') imp._fullLoaded=true;
+    return imp;
   }catch(e){
     console.error("AI 분석 실패:",e.message);
     return{headline:"AI 분석 실패: "+e.message,background:[],methods:[],results:[],conclusion:[],
@@ -1181,13 +1192,36 @@ async function downloadInfog(pmid, slug){
   }
 }
 
-function toggleInfog(pmid){
+async function toggleInfog(pmid){
   const wrap=document.getElementById(`infog-wrap-${pmid}`);
   const btn=document.getElementById(`infog-btn-${pmid}`);
   if(!wrap||!btn) return;
   const open=wrap.style.display==="block";
-  wrap.style.display=open?"none":"block";
-  btn.textContent=open?"📊 인포그래픽 보기":"✕ 인포그래픽 닫기";
+  if(open){
+    wrap.style.display="none";
+    btn.textContent="📊 인포그래픽 보기";
+    return;
+  }
+  wrap.style.display="block";
+  btn.textContent="✕ 인포그래픽 닫기";
+  const p=papers.find(x=>x.pmid===pmid);
+  if(!p) return;
+  if(p.imp && p.imp._fullLoaded){
+    wrap.innerHTML=buildInfographic(p);
+    return;
+  }
+  // Lazy-load full infographic data
+  wrap.innerHTML=`<div style="padding:28px;text-align:center;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:10px"><span class="imp-spin"></span>인포그래픽 생성 중…</div>`;
+  btn.disabled=true;
+  try{
+    const fullImp=await buildImplication(p.title,p.en,'full');
+    p.imp=Object.assign({},p.imp,fullImp,{_fullLoaded:true});
+    wrap.innerHTML=buildInfographic(p);
+  }catch(e){
+    wrap.innerHTML=`<div style="padding:20px;color:var(--red)">인포그래픽 생성 실패: ${esc(e.message)}</div>`;
+  }finally{
+    btn.disabled=false;
+  }
 }
 
 function cardHTML(p,rank){
@@ -1223,9 +1257,7 @@ ${["background","methods","results","conclusion"].map(k=>`<tr class="abs-tr">
     <a class="pm-link" href="${esc(p.url)}" target="_blank" rel="noopener">PubMed에서 보기 →</a>
   </div>
 </div>
-<div id="infog-wrap-${esc(p.pmid)}" style="display:none;border-top:1px solid var(--line)">
-  ${buildInfographic(p)}
-</div>
+<div id="infog-wrap-${esc(p.pmid)}" style="display:none;border-top:1px solid var(--line)"></div>
 </div>`;
 }
 
@@ -1303,19 +1335,17 @@ async function search(){
     content.innerHTML=`<div class="alist">${papers.map((p,i)=>cardHTML(p,i+1)).join("")}</div>`;
     setSt(`번역 완료 — AI 시사점 분석 중…`);
 
-    // AI 임상 시사점 — 최대 2편 병렬 분석 + 요청 간 지연 (rate limit 회피), 논문별 오류 격리
-    const lim2=pLimit(2);
+    // AI 임상 시사점 — 빠른 모드(3필드만) 병렬 분석, 인포그래픽은 버튼 클릭 시 지연 로드
+    const lim3=pLimit(3);
     let aiIdx=0;
-    await Promise.all(papers.map(p=>lim2(async()=>{
-      await sleep(aiIdx++ * 500);
+    await Promise.all(papers.map(p=>lim3(async()=>{
+      await sleep(aiIdx++ * 150);
       const cell=document.getElementById(`imp-${p.pmid}`);
       if(!cell) return;
       try{
-        const imp=await buildImplication(p.title,p.en);
+        const imp=await buildImplication(p.title,p.en,'quick');
         p.imp=imp;
         cell.innerHTML=impHTML(imp);
-        const igWrap=document.getElementById(`infog-wrap-${p.pmid}`);
-        if(igWrap) igWrap.innerHTML=buildInfographic(p);
       }catch(e){
         console.error(`AI 분석 실패 PMID ${p.pmid}:`,e.message);
         cell.innerHTML=`<div class="imp-txt" style="color:var(--slate-lt)">AI 분석 실패: ${esc(e.message)}</div>`;
