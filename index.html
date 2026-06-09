@@ -406,7 +406,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609d</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609e</span>
       </div>
     </div>
 
@@ -1499,25 +1499,31 @@ async function search(){
     if(needAI.length>0){
       let imps=null;
       let geminiErrMsg="";
+      const diagEl=document.getElementById("geminiDiag");
+      function diagLog(msg){
+        if(diagEl){diagEl.style.display="block";diagEl.innerHTML=msg;}
+        console.log("[DIAG]",msg.replace(/<[^>]+>/g,""));
+      }
+      diagLog(`<strong>1️⃣ Gemini 호출 시작</strong> — needAI: ${needAI.length}편`);
       // 1) Gemini 직접 API
       try{
         imps=await callGeminiBatch(needAI);
+        const nullCnt=imps.filter(r=>r===null).length;
+        diagLog(`<strong style="color:#166534">✅ Gemini 완료</strong> — 성공: ${imps.length-nullCnt}/${imps.length}, 실패: ${nullCnt}`);
       }catch(e){
         geminiErrMsg=(e.name?e.name+": ":"")+e.message;
+        diagLog(`<strong style="color:#991b1b">❌ Gemini 실패</strong><br>${esc(geminiErrMsg)}<br><small>→ 2️⃣ OpenRouter 배치 폴백 시도</small>`);
         console.warn("Gemini 실패:", geminiErrMsg);
         setSt(`⚠️ Gemini 오류: ${geminiErrMsg.slice(0,80)}`);
-        // 사이드바 고정 진단 박스 업데이트 (항상 DOM에 존재 — 폴백이 덮어쓸 수 없음)
-        const diagEl=document.getElementById("geminiDiag");
-        if(diagEl){
-          diagEl.style.display="block";
-          diagEl.innerHTML=`<strong>🔍 Gemini 오류</strong><br>${esc(geminiErrMsg)}<br><small>→ OpenRouter 폴백 중</small>`;
-        }
       }
       // 2) OpenRouter 배치 폴백
       if(!imps){
+        diagLog(`<strong>2️⃣ OpenRouter 배치 호출 중…</strong>`);
         try{
           imps=await callOpenRouterBatch(needAI);
+          diagLog(`<strong style="color:#166534">✅ OpenRouter 배치 완료</strong>`);
         }catch(e){
+          diagLog(`<strong style="color:#991b1b">❌ OR 배치 실패</strong>: ${esc(e.message)}<br><small>→ 3️⃣ 개별 호출 시도</small>`);
           console.warn("OpenRouter 배치 실패, 개별 폴백:",e.message);
           setSt("개별 분석 중…");
         }
