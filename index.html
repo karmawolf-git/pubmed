@@ -406,9 +406,11 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
       <div style="display:flex;align-items:center;gap:8px;padding:10px 13px;border:1.5px solid #99f6e4;border-radius:var(--r-sm);background:#f0fdfa">
         <span style="font-size:12px;font-weight:700;color:#0d9488">✨ Gemini</span>
         <span class="prov-badge fast" style="font-size:9.5px;font-weight:700;padding:1px 7px;border-radius:10px">2.5 Flash</span>
-        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609c</span>
+        <span style="margin-left:auto;font-size:9px;color:#94a3b8;font-family:var(--mono)">v0609d</span>
       </div>
     </div>
+
+    <div id="geminiDiag" style="display:none;padding:10px 13px;border:1.5px solid #fecaca;border-radius:var(--r-sm);background:#fef2f2;font-size:11.5px;color:#991b1b;line-height:1.55;word-break:break-all"></div>
 
     <button class="search-btn" id="searchBtn">
       <svg class="btn-ico" viewBox="0 0 20 20" fill="none">
@@ -1504,14 +1506,11 @@ async function search(){
         geminiErrMsg=(e.name?e.name+": ":"")+e.message;
         console.warn("Gemini 실패:", geminiErrMsg);
         setSt(`⚠️ Gemini 오류: ${geminiErrMsg.slice(0,80)}`);
-        // Gemini 오류를 mainContent 최상단 고정 배너로 표시 (폴백이 덮어쓰지 못하게)
-        const mc=document.getElementById("mainContent");
-        if(mc && !document.getElementById("gemErrBanner")){
-          const banner=document.createElement("div");
-          banner.id="gemErrBanner";
-          banner.style.cssText="margin:0 0 16px;padding:13px 16px;background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;font-size:12.5px;color:#991b1b;line-height:1.6";
-          banner.innerHTML=`<strong>🔍 Gemini 진단:</strong> <code style="background:#fff;padding:2px 6px;border-radius:4px;font-size:11.5px">${esc(geminiErrMsg)}</code><br><span style="font-size:11px;color:#b91c1c">→ OpenRouter로 폴백합니다. 이 메시지를 알려주세요.</span>`;
-          mc.insertBefore(banner,mc.firstChild);
+        // 사이드바 고정 진단 박스 업데이트 (항상 DOM에 존재 — 폴백이 덮어쓸 수 없음)
+        const diagEl=document.getElementById("geminiDiag");
+        if(diagEl){
+          diagEl.style.display="block";
+          diagEl.innerHTML=`<strong>🔍 Gemini 오류</strong><br>${esc(geminiErrMsg)}<br><small>→ OpenRouter 폴백 중</small>`;
         }
       }
       // 2) OpenRouter 배치 폴백
