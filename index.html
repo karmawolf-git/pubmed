@@ -1486,8 +1486,9 @@ async function search(){
       try{
         imps=await callGeminiBatch(needAI);
       }catch(e){
+        const gErr=e.message.slice(0,120);
         console.warn("Gemini 실패, OpenRouter 폴백:", e.message);
-        setSt("Gemini 실패 → OpenRouter 폴백 중…");
+        setSt(`⚠️ Gemini 오류: ${gErr} → OR 폴백`);
       }
       // 2) OpenRouter 배치 폴백
       if(!imps){
@@ -1500,9 +1501,9 @@ async function search(){
       }
       // 3) OpenRouter 개별 호출 폴백
       if(!imps){
-        const lim3=pLimit(3);let idx=0;
+        const lim3=pLimit(1);let idx=0;
         await Promise.all(needAI.map(p=>lim3(async()=>{
-          await sleep(idx++*300);
+          await sleep(idx++*1200);
           const cell=document.getElementById(`imp-${p.pmid}`);
           try{
             const imp=await buildImplication(p.title,p.en,'quick');
