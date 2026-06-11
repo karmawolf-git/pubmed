@@ -938,7 +938,7 @@ Rules:
 
 Return EXACTLY this JSON (no other text):
 {"headline":"...","background":["..."],"methods":["..."],"results":["..."],"conclusion":["..."],"key_stats":[{"label":"...","value":"...","unit":"..."}],"study_table":[{"항목":"설계","내용":"..."},{"항목":"대상","내용":"..."},{"항목":"중재","내용":"..."},{"항목":"비교군","내용":"..."},{"항목":"추적기간","내용":"..."}],"chart_data":[{"label":"...","value":0},{"label":"...","value":0}],"clinical":"문장1. 문장2. 문장3.","marketing":"문장1. 문장2."}`;
-  return{sys,usr,max_tokens:1500};
+  return{sys,usr,max_tokens:2500};
 }
 
 /* ── OPENROUTER: 런타임에 사용 가능한 무료 모델 조회 ── */
@@ -1026,19 +1026,19 @@ async function buildImplication(title, en, mode='quick'){
         if(mode==='full') imp._fullLoaded=true;
         return imp;
       }catch(e){
-        console.warn(`buildImplication Gemini [${model}]:`,e.message);
+        console.warn(`buildImplication Gemini [${model}] 실패:`,e.message);
       }
     }
   }
-  // OpenRouter 폴백
+  // Gemini 전부 실패 → OpenRouter 폴백
+  console.warn("buildImplication: Gemini 전부 실패, OpenRouter 폴백");
   try{
     const imp=await callOpenRouter(title,en,mode);
     if(mode==='full') imp._fullLoaded=true;
     return imp;
   }catch(e){
-    console.error("AI 분석 실패:",e.message);
-    return{headline:"AI 분석 실패: "+e.message,background:[],methods:[],results:[],conclusion:[],
-      key_stats:[],study_table:[],chart_data:[],clinical:[],marketing:[]};
+    // 둘 다 실패 — throw로 toggleInfog catch에 전달 (에러 화면 표시)
+    throw new Error("Gemini+OpenRouter 모두 실패: "+e.message);
   }
 }
 
@@ -1391,10 +1391,19 @@ async function toggleInfog(pmid){
   btn.disabled=true;
   try{
     const fullImp=await buildImplication(p.title,p.en,'full');
+    if(fullImp.headline&&fullImp.headline.startsWith("AI 분석 실패")){
+      throw new Error(fullImp.headline.replace("AI 분석 실패: ",""));
+    }
     p.imp=Object.assign({},p.imp,fullImp,{_fullLoaded:true});
-    wrap.innerHTML=buildInfographic(p);
+    try{
+      wrap.innerHTML=buildInfographic(p);
+    }catch(re){
+      console.error("buildInfographic 오류:",re);
+      throw new Error("렌더링 오류: "+re.message);
+    }
   }catch(e){
-    wrap.innerHTML=`<div style="padding:20px;color:var(--red)">인포그래픽 생성 실패: ${esc(e.message)}</div>`;
+    console.error("인포그래픽 오류:",e);
+    wrap.innerHTML=`<div style="padding:20px;color:var(--red);font-size:12.5px;line-height:1.6"><strong>인포그래픽 생성 실패</strong><br>${esc(e.message)}</div>`;
   }finally{
     btn.disabled=false;
   }
