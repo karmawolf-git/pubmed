@@ -823,8 +823,32 @@ function parseJSON(raw){
     if(clean[i]==="{"){if(depth===0)start=i;depth++;}
     else if(clean[i]==="}"){depth--;if(depth===0&&start!==-1){try{best=JSON.parse(clean.slice(start,i+1));}catch{}start=-1;}}
   }
-  if(best) return best;
+  if(best) return sanitizeImp(best);
   throw new Error("JSON 없음 — 응답: "+clean.slice(0,120));
+}
+
+/* ── POST-PROCESS: 제품 상표명·선생님 호칭 제거 ── */
+const BRAND_STRIP=[
+  /리피토\s*®?/g, /카듀엣\s*®?/g, /노바스크\s*®?/g,
+  /쎄레브렉스\s*®?/g, /리리카\s*®?/g,
+  /Lipitor\s*®?/gi, /Caduet\s*®?/gi, /Norvasc\s*®?/gi,
+  /Celebrex\s*®?/gi, /Lyrica\s*®?/gi,
+  /선생님께?/g
+];
+function sanitizeImp(imp){
+  if(!imp||typeof imp!=="object") return imp;
+  const str=v=>{
+    if(typeof v!=="string") return v;
+    let s=v;
+    for(const re of BRAND_STRIP) s=s.replace(re,"");
+    return s.replace(/\s{2,}/g," ").trim();
+  };
+  const fields=["headline","clinical","marketing"];
+  fields.forEach(k=>{if(imp[k]) imp[k]=str(imp[k]);});
+  if(Array.isArray(imp.background)) imp.background=imp.background.map(str);
+  if(Array.isArray(imp.results))    imp.results=imp.results.map(str);
+  if(Array.isArray(imp.conclusion)) imp.conclusion=imp.conclusion.map(str);
+  return imp;
 }
 
 /* ── PARSE JSON ARRAY ── */
@@ -832,10 +856,10 @@ function parseJSONArray(raw){
   const stripped=(raw||"").replace(/<think>[\s\S]*?<\/think>/gi,"");
   const clean=stripped.replace(/^```(?:json)?\s*/,"").replace(/\s*```$/,"").trim();
   // Direct parse
-  try{const r=JSON.parse(clean);if(Array.isArray(r))return r;}catch{}
+  try{const r=JSON.parse(clean);if(Array.isArray(r))return r.map(sanitizeImp);}catch{}
   // Find [...] block
   const m=clean.match(/\[[\s\S]*\]/);
-  if(m){try{const r=JSON.parse(m[0]);if(Array.isArray(r))return r;}catch{}}
+  if(m){try{const r=JSON.parse(m[0]);if(Array.isArray(r))return r.map(sanitizeImp);}catch{}}
   throw new Error("JSON 배열 없음 — 응답: "+clean.slice(0,120));
 }
 
