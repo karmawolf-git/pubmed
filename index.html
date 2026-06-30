@@ -853,11 +853,11 @@ You are writing for Viatris Korea medical representatives. Viatris key products:
 - 리리카® (pregabalin) — 신경병증성 통증, 섬유근육통, 부분 발작
 
 When writing clinical and marketing sections:
-- ALWAYS connect the paper's findings to the most relevant Viatris product(s) above
-- For clinical: explain how this evidence supports or guides use of the relevant Viatris product in practice
-- For marketing: give the MR a concrete talk-track — which Viatris product, which patient profile, which data point to lead with
-- If the paper is about a competitor drug, highlight how the findings support switching to or combining with the relevant Viatris product
-- Use product trade names (리피토®, 쎄레브렉스® etc.) naturally in the text
+- ALWAYS connect the paper's findings to the relevant therapeutic area (lipid-lowering, CV risk, pain, neuropathy, etc.)
+- For clinical: cite specific numbers/outcomes from the paper and explain practical treatment implications
+- For marketing: give the MR a concrete talking point — which patient profile, which data point, which guideline angle to lead with
+- Do NOT mention specific product trade names (리피토®, 쎄레브렉스®, atorvastatin, celecoxib, etc.) in any output field
+- Do NOT use honorifics such as "선생님" in any output field
 `.trim();
 
 /* ── BATCH PROMPT (논문 N편 → JSON 배열 1회 호출) ── */
@@ -868,7 +868,7 @@ function buildBatchPrompt(papers){
   }).join("\n\n");
   const sys=`You are a medical research analyst for Viatris Korea. Respond ONLY with a valid JSON array. No markdown, no code block, no explanation.\n\n${VIATRIS_CONTEXT}`;
   const usr=`Analyze these ${papers.length} medical papers. Return ONLY a JSON array with exactly ${papers.length} objects in the same order:
-[{"headline":"Viatris 제품 연결 핵심 한줄","clinical":"임상 적용 2-3문장(수치+제품명)","marketing":"MR 토크트랙 1-2문장"},...]
+[{"headline":"임상 핵심 한줄(수치·근거 중심, 제품명 제외)","clinical":"임상 적용 2-3문장(구체적 수치 포함, 제품명 제외)","marketing":"MR 실무 활용 1-2문장(제품명·선생님 호칭 제외)"},...]
 
 Papers:
 ${items}`;
@@ -915,7 +915,7 @@ function buildPrompt(title, en, mode='quick'){
   const sys=`You are a medical research analyst for Viatris Korea. Respond ONLY with a valid JSON object. No markdown, no code block, no explanation.\n\n${VIATRIS_CONTEXT}`;
   if(mode==='quick'){
     const usr=`Analyze this medical paper. Return ONLY this JSON (no other text):
-{"headline":"핵심 한줄 요약(Viatris 제품 연결)","clinical":"임상 적용 2-3문장(구체적 수치+제품명 포함)","marketing":"MR 토크트랙 1-2문장(의사 대상 제품 어필)"}
+{"headline":"임상 핵심 한줄(수치·근거 중심, 제품명 제외)","clinical":"임상 적용 2-3문장(구체적 수치 포함, 제품명 제외)","marketing":"MR 실무 활용 1-2문장(제품명·선생님 호칭 제외)"}
 
 Title: ${title}
 Abstract: ${abs}`;
@@ -929,9 +929,9 @@ Abstract: ${abs}
 
 Rules:
 - background/methods/results/conclusion: each bullet = ONE complete Korean sentence (40-60 chars). Split long content into multiple bullets.
-- clinical: 2-3 full sentences — concrete treatment decisions citing this paper's numbers/drugs, explicitly connecting to the relevant Viatris product
-- marketing: 1-2 full sentences — specific MR talk-track using this paper to promote the relevant Viatris product
-- headline: one punchy Korean sentence that highlights the Viatris product angle
+- clinical: 2-3 full sentences — concrete treatment decisions citing this paper's numbers. No product trade names. No "선생님".
+- marketing: 1-2 full sentences — MR practical talking point based on this paper's evidence. No product trade names. No "선생님".
+- headline: one punchy Korean sentence summarising the key clinical finding or outcome number. No product trade names.
 - key_stats: up to 4 key numbers (HR, OR, %, p-value)
 - study_table: 5 rows with keys "항목" and "내용" (설계/대상/중재/비교군/추적기간)
 - chart_data: 2-4 items with numeric "value"
