@@ -1115,11 +1115,17 @@ function igBullets(arr, dotColor){
 function igKeyStats(stats){
   if(!Array.isArray(stats)||!stats.length) return "";
   const cols=stats.slice(0,4);
-  return`<div style="display:grid;grid-template-columns:repeat(${cols.length},1fr);gap:7px">
-${cols.map(s=>`<div style="background:#0f172a;border-radius:7px;padding:11px 10px 9px;text-align:center">
-  <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#0d9488;margin-bottom:4px;line-height:1.2">${esc(s.label)}</div>
-  <div style="font-size:24px;font-weight:700;color:#fff;line-height:1;font-family:'IBM Plex Mono',monospace">${esc(s.value)}</div>
-  <div style="font-size:9.5px;color:#34d399;margin-top:3px;line-height:1.35">${esc(s.unit||"")}</div>
+  const n=cols.length;
+  const valSz=n<=1?"26px":n===2?"22px":n===3?"18px":"15px";
+  const lblSz=n>=4?"8.5px":"10px";
+  const unitSz=n>=4?"8px":"9.5px";
+  const pad=n>=3?"8px 6px 7px":"11px 10px 9px";
+  const cols2=n>=3?2:n;
+  return`<div style="display:grid;grid-template-columns:repeat(${cols2},1fr);gap:6px">
+${cols.map(s=>`<div style="background:#0f172a;border-radius:7px;padding:${pad};text-align:center;min-width:0">
+  <div style="font-size:${lblSz};font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#0d9488;margin-bottom:4px;line-height:1.3;word-break:keep-all">${esc(s.label)}</div>
+  <div style="font-size:${valSz};font-weight:700;color:#fff;line-height:1;font-family:'IBM Plex Mono',monospace;word-break:break-all">${esc(s.value)}</div>
+  <div style="font-size:${unitSz};color:#34d399;margin-top:3px;line-height:1.3;word-break:keep-all">${esc(s.unit||"")}</div>
 </div>`).join("")}
 </div>`;
 }
