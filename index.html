@@ -661,9 +661,14 @@ function buildQuery(){
   const affils=document.getElementById("affiliationSearch").value.split(",").map(k=>k.trim().replace(/"/g,"")).filter(Boolean);
   const ft=field==="Title"?"[Title]":"[Title/Abstract]";
   const kw=kws();
-  let kc=`"${kw[0].kw}"${ft}`;
-  for(let i=1;i<kw.length;i++) kc+=` ${kw[i-1].op} "${kw[i].kw}"${ft}`;
-  let q=`(${kc}) AND ("${from}"[Date - Publication] : "${to}"[Date - Publication])`;
+  let q;
+  if(kw.length){
+    let kc=`"${kw[0].kw}"${ft}`;
+    for(let i=1;i<kw.length;i++) kc+=` ${kw[i-1].op} "${kw[i].kw}"${ft}`;
+    q=`(${kc}) AND ("${from}"[Date - Publication] : "${to}"[Date - Publication])`;
+  } else {
+    q=`("${from}"[Date - Publication] : "${to}"[Date - Publication])`;
+  }
   if(authors.length) q+=` AND (${authors.map(a=>`"${a}"[Author]`).join(" OR ")})`;
   if(affils.length) q+=` AND (${affils.map(a=>`"${a}"[Affiliation]`).join(" OR ")})`;
   if(eb) q+=` NOT (animals[mh] NOT humans[mh]) NOT ("mice"[Title/Abstract] OR "rats"[Title/Abstract] OR "mouse"[Title/Abstract] OR "cell"[Title/Abstract] OR "cells"[Title/Abstract] OR "in vitro"[Title/Abstract] OR "animal model"[Title/Abstract])`;
@@ -1495,7 +1500,9 @@ async function search(){
   const cc=document.getElementById("countChip"),pt=document.getElementById("periodText"),tp=document.getElementById("tbPeriod");
   const sl=document.getElementById("sortLbl"),qd=document.getElementById("qdisplay"),qb=document.getElementById("qbox");
 
-  if(!kws().length){setSt("키워드를 1개 이상 추가해 주세요.",true,false);return;}
+  const _authors=document.getElementById("authorSearch").value.trim();
+  const _affils=document.getElementById("affiliationSearch").value.trim();
+  if(!kws().length&&!_authors&&!_affils){setSt("키워드, 저자, 소속 중 하나를 입력해 주세요.",true,false);return;}
   btn.disabled=true;btn.innerHTML=`<svg class="btn-ico" viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="5.5" stroke="white" stroke-width="1.8"/><path d="M13.5 13.5L17 17" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg> 검색 중…`;
   content.innerHTML="";qd.classList.remove("on");qb.classList.remove("on");
 
