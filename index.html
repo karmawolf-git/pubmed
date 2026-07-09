@@ -383,6 +383,10 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--a
           <input type="number" id="maxResults" value="5" min="1" max="30"/>
         </div>
         <div style="grid-column:1/-1">
+          <label class="fld-lbl" for="authorSearch">저자 (선택)</label>
+          <input type="text" id="authorSearch" placeholder="예: Kim J, Park S"/>
+        </div>
+        <div style="grid-column:1/-1">
           <label class="fld-lbl" for="excludeKw">제외 키워드 (쉼표 구분)</label>
           <input type="text" id="excludeKw" placeholder="예: mouse, in vitro, pediatric"/>
         </div>
@@ -649,11 +653,13 @@ function buildQuery(){
   const field=document.getElementById("fieldMode").value;
   const eb=document.getElementById("excludeBasic").checked;
   const ex=document.getElementById("excludeKw").value.split(",").map(k=>k.trim().replace(/"/g,"")).filter(Boolean);
+  const authors=document.getElementById("authorSearch").value.split(",").map(k=>k.trim().replace(/"/g,"")).filter(Boolean);
   const ft=field==="Title"?"[Title]":"[Title/Abstract]";
   const kw=kws();
   let kc=`"${kw[0].kw}"${ft}`;
   for(let i=1;i<kw.length;i++) kc+=` ${kw[i-1].op} "${kw[i].kw}"${ft}`;
   let q=`(${kc}) AND ("${from}"[Date - Publication] : "${to}"[Date - Publication])`;
+  if(authors.length) q+=` AND (${authors.map(a=>`"${a}"[Author]`).join(" OR ")})`;
   if(eb) q+=` NOT (animals[mh] NOT humans[mh]) NOT ("mice"[Title/Abstract] OR "rats"[Title/Abstract] OR "mouse"[Title/Abstract] OR "cell"[Title/Abstract] OR "cells"[Title/Abstract] OR "in vitro"[Title/Abstract] OR "animal model"[Title/Abstract])`;
   if(ex.length) q+=` NOT (${ex.map(k=>`"${k}"${ft}`).join(" OR ")})`;
   return q;
